@@ -5,6 +5,15 @@ from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, Q
 from PySide6.QtCore import Qt
 from screens import BlueScreen, RedScreen, GreenScreen, GitHubScreen
 
+# Global gradient stylesheet
+GRADIENT_BACKGROUND = """
+QWidget {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, 
+                                stop:0 #1f2937, 
+                                stop:1 #111827);
+}
+"""
+
 
 class MainScreen(QWidget):
     """Main screen with navigation buttons."""
@@ -12,7 +21,7 @@ class MainScreen(QWidget):
         super().__init__()
         self.navigate = navigate_callback
         self.unlink_repo = unlink_callback
-        self.setStyleSheet("background-color: #f5f5f5;")
+        self.setStyleSheet(GRADIENT_BACKGROUND)
         self.init_ui()
 
     def init_ui(self):
@@ -22,13 +31,13 @@ class MainScreen(QWidget):
 
         # Title
         title = QLabel("ProjectTimeSaver")
-        title.setStyleSheet("font-size: 36px; font-weight: bold; color: #1a1a1a;")
+        title.setStyleSheet("background-color: transparent; font-family: 'Segoe UI', 'Inter', sans-serif; font-size: 36px; font-weight: bold; color: #f0f9ff;")
         title.setAlignment(Qt.AlignCenter)
         layout.addWidget(title)
 
         # Subtitle
         subtitle = QLabel("Select a fix to apply")
-        subtitle.setStyleSheet("font-size: 14px; color: #666666;")
+        subtitle.setStyleSheet("background-color: transparent; font-family: 'Segoe UI', 'Inter', sans-serif; font-size: 14px; color: #cbd5e1;")
         subtitle.setAlignment(Qt.AlignCenter)
         layout.addWidget(subtitle)
 
@@ -40,9 +49,9 @@ class MainScreen(QWidget):
         button_layout.setSpacing(15)
 
         buttons_data = [
-            ("FIX #1", 0, "#e3f2fd", "#0d47a1"),
-            ("FIX #2", 1, "#ffebee", "#b71c1c"),
-            ("FIX #3", 2, "#e8f5e9", "#1b5e20"),
+            ("FIX #1", 0, "#1e40af", "#60a5fa"),
+            ("FIX #2", 1, "#991b1b", "#f87171"),
+            ("FIX #3", 2, "#15803d", "#4ade80"),
         ]
 
         for label, index, bg_color, text_color in buttons_data:
@@ -52,21 +61,22 @@ class MainScreen(QWidget):
                 QPushButton {{
                     background-color: {bg_color};
                     color: {text_color};
-                    border: 2px solid {text_color};
+                    border: 3px solid transparent;
                     border-radius: 8px;
+                    font-family: 'Segoe UI', 'Inter', sans-serif;
                     font-size: 16px;
                     font-weight: bold;
                     padding: 10px;
                 }}
                 QPushButton:hover {{
-                    background-color: {text_color};
-                    color: white;
-                    border: 2px solid {text_color};
+                    background-color: {bg_color};
+                    color: {text_color};
+                    border: 3px solid #ff8c00;
                 }}
                 QPushButton:pressed {{
-                    background-color: {text_color};
-                    color: white;
-                    border: 2px solid {text_color};
+                    background-color: {bg_color};
+                    color: {text_color};
+                    border: 3px solid #ff8c00;
                 }}
             """)
             btn.setCursor(Qt.PointingHandCursor)
@@ -85,20 +95,23 @@ class MainScreen(QWidget):
         self.github_button.setMinimumHeight(50)
         self.github_button.setStyleSheet("""
             QPushButton {
-                background-color: #f5f5f5;
-                color: #333333;
-                border: 2px dashed #999999;
+                background-color: rgba(30, 41, 59, 0.8);
+                color: #e2e8f0;
+                border: 3px solid transparent;
                 border-radius: 8px;
+                font-family: 'Segoe UI', 'Inter', sans-serif;
                 font-size: 14px;
                 font-weight: bold;
                 padding: 10px;
             }
             QPushButton:hover {
-                background-color: #eeeeee;
-                border: 2px dashed #666666;
+                background-color: rgba(30, 41, 59, 0.8);
+                border: 3px solid #ff8c00;
+                color: #f0f9ff;
             }
             QPushButton:pressed {
-                background-color: #dddddd;
+                background-color: rgba(30, 41, 59, 0.9);
+                border: 3px solid #ff8c00;
             }
         """)
         self.github_button.setCursor(Qt.PointingHandCursor)
@@ -109,21 +122,22 @@ class MainScreen(QWidget):
         self.unlink_button.setFixedSize(50, 50)
         self.unlink_button.setStyleSheet("""
             QPushButton {
-                background-color: #ffcdd2;
-                color: #c62828;
-                border: 2px solid #c62828;
+                background-color: rgba(127, 29, 29, 0.8);
+                color: #ffffff;
+                border: 3px solid transparent;
                 border-radius: 5px;
                 font-size: 18px;
                 font-weight: bold;
                 padding: 0px;
             }
             QPushButton:hover {
-                background-color: #ef5350;
+                background-color: rgba(127, 29, 29, 0.8);
+                border: 3px solid #ff8c00;
                 color: white;
-                border: 2px solid #ef5350;
             }
             QPushButton:pressed {
-                background-color: #c62828;
+                background-color: rgba(127, 29, 29, 1);
+                border: 3px solid #ff8c00;
                 color: white;
             }
         """)
@@ -139,6 +153,50 @@ class MainScreen(QWidget):
     def set_repo_linked(self, is_linked):
         """Update the GitHub button state to show if a repo is linked."""
         self.unlink_button.setEnabled(is_linked)
+        if is_linked:
+            self.github_button.setStyleSheet("""
+                QPushButton {
+                    background-color: #15803d;
+                    color: #e2e8f0;
+                    border: 3px solid transparent;
+                    border-radius: 8px;
+                    font-family: 'Segoe UI', 'Inter', sans-serif;
+                    font-size: 14px;
+                    font-weight: bold;
+                    padding: 10px;
+                }
+                QPushButton:hover {
+                    background-color: #15803d;
+                    border: 3px solid #ff8c00;
+                    color: #f0f9ff;
+                }
+                QPushButton:pressed {
+                    background-color: #166534;
+                    border: 3px solid #ff8c00;
+                }
+            """)
+        else:
+            self.github_button.setStyleSheet("""
+                QPushButton {
+                    background-color: rgba(30, 41, 59, 0.8);
+                    color: #e2e8f0;
+                    border: 3px solid transparent;
+                    border-radius: 8px;
+                    font-family: 'Segoe UI', 'Inter', sans-serif;
+                    font-size: 14px;
+                    font-weight: bold;
+                    padding: 10px;
+                }
+                QPushButton:hover {
+                    background-color: rgba(30, 41, 59, 0.8);
+                    border: 3px solid #ff8c00;
+                    color: #f0f9ff;
+                }
+                QPushButton:pressed {
+                    background-color: rgba(30, 41, 59, 0.9);
+                    border: 3px solid #ff8c00;
+                }
+            """)
 
 
 class MainWindow(QMainWindow):
@@ -146,7 +204,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("ProjectTimeSaver - AI Bot UI")
         self.resize(1000, 700)
-        self.setStyleSheet("background-color: #ffffff;")
+        self.setStyleSheet(GRADIENT_BACKGROUND)
 
         # Set up repos subfolder
         self.repos_folder = os.path.join(os.path.dirname(__file__), "repos")
@@ -183,6 +241,9 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.stacked)
         self.stacked.setCurrentIndex(0)
         
+        # Track current repo
+        self.current_repo_url = None
+        
         # Check if repo is already linked
         self.check_and_update_repo_status()
 
@@ -193,13 +254,29 @@ class MainWindow(QMainWindow):
 
     def check_and_update_repo_status(self):
         """Check if a repo is already linked and update UI."""
-        # For now, we check if repos folder has any content
-        if os.path.exists(self.repos_folder) and os.listdir(self.repos_folder):
-            # Repo is linked
-            self.main_screen.set_repo_linked(True)
+        repo_info_file = os.path.join(self.repos_folder, "repo_info.txt")
+        if os.path.exists(repo_info_file):
+            try:
+                with open(repo_info_file, "r") as f:
+                    self.current_repo_url = f.read().strip()
+                    self.main_screen.set_repo_linked(True)
+                    self._update_all_screens_repo_info()
+            except Exception:
+                pass
+        else:
+            self.current_repo_url = None
+            self.main_screen.set_repo_linked(False)
+    
+    def _update_all_screens_repo_info(self):
+        """Update all screens with current repo info."""
+        self.blue_screen.set_repo_info(self.current_repo_url)
+        self.red_screen.set_repo_info(self.current_repo_url)
+        self.green_screen.set_repo_info(self.current_repo_url)
+        self.github_screen.set_repo_info(self.current_repo_url)
 
     def navigate_to_screen(self, index):
         """Navigate to a specific screen (0-2 for detail screens, 3 for github)."""
+        self._update_all_screens_repo_info()
         self.stacked.setCurrentIndex(index + 1)
 
     def back_to_main(self):
@@ -215,11 +292,13 @@ class MainWindow(QMainWindow):
             with open(repo_info_file, "w") as f:
                 f.write(repo_url)
             
+            self.current_repo_url = repo_url
             self.github_screen.set_linked_status(repo_url)
             self.main_screen.set_repo_linked(True)
+            self._update_all_screens_repo_info()
         except Exception as e:
             self.github_screen.status_label.setText(f"Error linking repository: {str(e)}")
-            self.github_screen.status_label.setStyleSheet("font-size: 12px; color: #c62828;")
+            self.github_screen.status_label.setStyleSheet("font-size: 12px; color: #fca5a5;")
 
     def on_repo_unlinked(self):
         """Handle repository unlinking."""
@@ -232,8 +311,10 @@ class MainWindow(QMainWindow):
                 shutil.rmtree(self.repos_folder)
             self.ensure_repos_folder()
             
+            self.current_repo_url = None
             self.github_screen.set_unlinked_status()
             self.main_screen.set_repo_linked(False)
+            self._update_all_screens_repo_info()
         except Exception as e:
             print(f"Error unlinking repository: {str(e)}")
 
