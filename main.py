@@ -1,20 +1,77 @@
 import sys
-from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QSizePolicy
+from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QStackedWidget, QLabel
 from PySide6.QtCore import Qt
+from screens import BlueScreen, RedScreen, GreenScreen
 
 
-class BotPanel(QFrame):
-    def __init__(self, text: str = "untitled"):
+class MainScreen(QWidget):
+    """Main screen with navigation buttons."""
+    def __init__(self, navigate_callback):
         super().__init__()
-        self.setFrameShape(QFrame.Box)
-        self.setLineWidth(1)
-        self.setStyleSheet("background-color: #f0f0f0; border: 1px solid #999;")
-        label = QLabel(text)
-        label.setAlignment(Qt.AlignCenter)
+        self.navigate = navigate_callback
+        self.setStyleSheet("background-color: #f5f5f5;")
+        self.init_ui()
 
+    def init_ui(self):
         layout = QVBoxLayout(self)
-        layout.addWidget(label)
-        layout.addStretch(1)
+        layout.setContentsMargins(40, 40, 40, 40)
+        layout.setSpacing(30)
+
+        # Title
+        title = QLabel("ProjectTimeSaver")
+        title.setStyleSheet("font-size: 36px; font-weight: bold; color: #1a1a1a;")
+        title.setAlignment(Qt.AlignCenter)
+        layout.addWidget(title)
+
+        # Subtitle
+        subtitle = QLabel("Select a fix to apply")
+        subtitle.setStyleSheet("font-size: 14px; color: #666666;")
+        subtitle.setAlignment(Qt.AlignCenter)
+        layout.addWidget(subtitle)
+
+        layout.addSpacing(20)
+
+        # Button container
+        button_container = QWidget()
+        button_layout = QVBoxLayout(button_container)
+        button_layout.setSpacing(15)
+
+        buttons_data = [
+            ("FIX #1", 0, "#e3f2fd", "#0d47a1"),
+            ("FIX #2", 1, "#ffebee", "#b71c1c"),
+            ("FIX #3", 2, "#e8f5e9", "#1b5e20"),
+        ]
+
+        for label, index, bg_color, text_color in buttons_data:
+            btn = QPushButton(label)
+            btn.setMinimumHeight(80)
+            btn.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {bg_color};
+                    color: {text_color};
+                    border: 2px solid {text_color};
+                    border-radius: 8px;
+                    font-size: 16px;
+                    font-weight: bold;
+                    padding: 10px;
+                }}
+                QPushButton:hover {{
+                    background-color: {text_color};
+                    color: white;
+                    border: 2px solid {text_color};
+                }}
+                QPushButton:pressed {{
+                    background-color: {text_color};
+                    color: white;
+                    border: 2px solid {text_color};
+                }}
+            """)
+            btn.setCursor(Qt.PointingHandCursor)
+            btn.clicked.connect(lambda checked=False, idx=index: self.navigate(idx))
+            button_layout.addWidget(btn)
+
+        layout.addWidget(button_container)
+        layout.addStretch()
 
 
 class MainWindow(QMainWindow):
@@ -22,32 +79,39 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("ProjectTimeSaver - AI Bot UI")
         self.resize(1000, 700)
+        self.setStyleSheet("background-color: #ffffff;")
 
-        central = QWidget()
-        central.setStyleSheet("background-color: #b0b0b0;")
+        # Create stacked widget for screen management
+        self.stacked = QStackedWidget()
 
-        main_layout = QHBoxLayout(central)
-        main_layout.setContentsMargins(0, 0, 0, 0)
+        # Create main screen
+        self.main_screen = MainScreen(self.navigate_to_screen)
+        self.stacked.addWidget(self.main_screen)
 
-        left_container = QWidget()
-        left_layout = QVBoxLayout(left_container)
-        left_layout.setContentsMargins(20, 20, 20, 20)
-        left_layout.setSpacing(15)
+        # Create detail screens
+        self.blue_screen = BlueScreen()
+        self.red_screen = RedScreen()
+        self.green_screen = GreenScreen()
 
-        left_layout.addWidget(BotPanel("untitled"))
-        left_layout.addWidget(BotPanel("untitled"))
-        left_layout.addWidget(BotPanel("untitled"))
-        left_layout.addStretch(1)
+        self.stacked.addWidget(self.blue_screen)
+        self.stacked.addWidget(self.red_screen)
+        self.stacked.addWidget(self.green_screen)
 
-        left_container.setFixedWidth(320)
+        # Connect back signals
+        self.blue_screen.back_pressed.connect(self.back_to_main)
+        self.red_screen.back_pressed.connect(self.back_to_main)
+        self.green_screen.back_pressed.connect(self.back_to_main)
 
-        right_spacer = QWidget()
-        right_spacer.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.setCentralWidget(self.stacked)
+        self.stacked.setCurrentIndex(0)
 
-        main_layout.addWidget(left_container)
-        main_layout.addWidget(right_spacer)
+    def navigate_to_screen(self, index):
+        """Navigate to a specific screen (1, 2, or 3 for detail screens)."""
+        self.stacked.setCurrentIndex(index + 1)
 
-        self.setCentralWidget(central)
+    def back_to_main(self):
+        """Return to the main screen."""
+        self.stacked.setCurrentIndex(0)
 
 
 if __name__ == "__main__":
