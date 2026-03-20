@@ -82,6 +82,7 @@ class BaseScreen(QWidget):
 
         # Content area
         self.content_widget = QWidget()
+        self.content_widget.setStyleSheet("background-color: transparent;")
         self.content_layout = QVBoxLayout(self.content_widget)
         self.content_layout.setContentsMargins(40, 40, 40, 40)
         self.content_layout.setSpacing(20)
@@ -184,10 +185,13 @@ class GitHubScreen(BaseScreen):
         description.setAlignment(Qt.AlignCenter)
         self.add_content(description)
         
-        self.add_content(QLabel())  # Spacer
+        spacer = QLabel()
+        spacer.setStyleSheet("background-color: transparent;")
+        self.add_content(spacer)
         
         # Input container
         input_container = QWidget()
+        input_container.setStyleSheet("background-color: transparent;")
         input_layout = QHBoxLayout(input_container)
         input_layout.setSpacing(10)
         

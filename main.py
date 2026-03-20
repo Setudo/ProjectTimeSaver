@@ -45,6 +45,7 @@ class MainScreen(QWidget):
 
         # Button container
         button_container = QWidget()
+        button_container.setStyleSheet("background-color: transparent;")
         button_layout = QVBoxLayout(button_container)
         button_layout.setSpacing(15)
 
@@ -87,6 +88,7 @@ class MainScreen(QWidget):
         
         # GitHub button with unlink option
         github_container = QWidget()
+        github_container.setStyleSheet("background-color: transparent;")
         github_layout = QHBoxLayout(github_container)
         github_layout.setSpacing(10)
         github_layout.setContentsMargins(0, 0, 0, 0)
