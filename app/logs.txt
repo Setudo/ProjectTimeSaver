@@ -1,0 +1,16 @@
+=== App Started at 2026-04-13T20:02:16.722426 ===
+[2026-04-13 20:02:16] [INFO] Application started
+[2026-04-13 20:02:22] [INFO] User initiated download for: https://github.com/zpqrtbnk/test-repo
+[2026-04-13 20:02:22] [DEBUG] Starting download to: C:\Users\samue\OneDrive - Bournemouth University\Work\Third Year\Project\Artefact\ProjectTimeSaver\app\repos\test-repo
+[2026-04-13 20:02:24] [INFO] Download successful: Cloned repository successfully
+[2026-04-13 20:02:24] [INFO] Repository successfully linked and downloaded
+[2026-04-13 20:02:26] [DEBUG] Successfully deleted repo folder: C:\Users\samue\OneDrive - Bournemouth University\Work\Third Year\Project\Artefact\ProjectTimeSaver\app\repos\test-repo
+[2026-04-13 20:02:26] [DEBUG] Successfully deleted repo_info.txt
+[2026-04-13 20:02:26] [INFO] Repository unlinked successfully
+[2026-04-13 20:02:32] [INFO] User initiated download for: https://github.com/zpqrtbnk/test-repo
+[2026-04-13 20:02:32] [DEBUG] Starting download to: C:\Users\samue\OneDrive - Bournemouth University\Work\Third Year\Project\Artefact\ProjectTimeSaver\app\repos\test-repo
+[2026-04-13 20:02:34] [INFO] Download successful: Cloned repository successfully
+[2026-04-13 20:02:34] [INFO] Repository successfully linked and downloaded
+[2026-04-13 20:02:52] [DEBUG] Successfully deleted repo folder: C:\Users\samue\OneDrive - Bournemouth University\Work\Third Year\Project\Artefact\ProjectTimeSaver\app\repos\test-repo
+[2026-04-13 20:02:52] [DEBUG] Successfully deleted repo_info.txt
+[2026-04-13 20:02:52] [INFO] Repository unlinked successfully
