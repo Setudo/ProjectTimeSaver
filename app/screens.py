@@ -3,14 +3,25 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont
 import os
 
-# Global gradient stylesheet
+# Modern dark theme with programmer-focused design
 GRADIENT_BACKGROUND = """
 QWidget {
-    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, 
-                                stop:0 #1f2937, 
-                                stop:1 #111827);
+    background-color: #0f1419;
 }
 """
+
+COLOR_PRIMARY_DARK = "#0f1419"
+COLOR_SURFACE = "#1a1f2e"
+COLOR_SURFACE_LIGHT = "#252d3d"
+COLOR_ACCENT_BLUE = "#00a8e8"
+COLOR_ACCENT_DARK_BLUE = "#0d47a1"
+COLOR_TEXT_PRIMARY = "#e0e0e0"
+COLOR_TEXT_SECONDARY = "#a0a0a0"
+COLOR_ERROR = "#ff5252"
+COLOR_SUCCESS = "#4caf50"
+COLOR_WARNING = "#ff9800"
+COLOR_ACCENT_RED = "#c41c3b"
+COLOR_ACCENT_GREEN = "#4caf50"
 
 
 def generate_tree_structure(folder_path, prefix="", max_depth=10, current_depth=0, ignore_folders={'.git', '__pycache__', '.pytest_cache', 'node_modules', '.venv', 'venv'}):
@@ -100,31 +111,33 @@ class BaseScreen(QWidget):
 
         # Top bar with back button and repo indicator
         top_bar = QWidget()
-        top_bar.setStyleSheet("background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0f172a, stop:1 #030712);")
-        top_bar.setFixedHeight(60)
+        top_bar.setStyleSheet(f"background-color: {COLOR_SURFACE}; border-bottom: 1px solid {COLOR_SURFACE_LIGHT};")
+        top_bar.setFixedHeight(56)
         top_layout = QHBoxLayout(top_bar)
         top_layout.setContentsMargins(20, 0, 20, 0)
 
         back_button = QPushButton("← Back")
-        back_button.setStyleSheet("""
-            QPushButton {
-                background-color: rgba(51, 65, 85, 0.5);
-                color: #ffffff;
-                border: 3px solid transparent;
-                border-radius: 5px;
-                padding: 10px 20px;
-                
-                font-size: 13px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: rgba(51, 65, 85, 0.7);
-                border: 3px solid #ff8c00;
-            }
-            QPushButton:pressed {
-                background-color: rgba(51, 65, 85, 0.4);
-                border: 3px solid #ff8c00;
-            }
+        back_button.setStyleSheet(f"""
+            QPushButton {{
+                background-color: transparent;
+                color: {COLOR_TEXT_PRIMARY};
+                border: 1px solid {COLOR_SURFACE_LIGHT};
+                border-radius: 0px;
+                padding: 8px 16px;
+                font-size: 12px;
+                font-weight: 500;
+                font-family: 'Courier New', monospace;
+            }}
+            QPushButton:hover {{
+                background-color: {COLOR_SURFACE_LIGHT};
+                border: 1px solid {COLOR_ACCENT_BLUE};
+                color: {COLOR_ACCENT_BLUE};
+            }}
+            QPushButton:pressed {{
+                background-color: {COLOR_ACCENT_DARK_BLUE};
+                border: 1px solid {COLOR_ACCENT_BLUE};
+                color: {COLOR_ACCENT_BLUE};
+            }}
         """)
         back_button.setCursor(Qt.PointingHandCursor)
         back_button.clicked.connect(self.back_pressed.emit)
@@ -135,17 +148,17 @@ class BaseScreen(QWidget):
         # Repo indicator (center)
         self.repo_indicator = QLabel()
         self.repo_indicator.setAlignment(Qt.AlignCenter)
-        self.repo_indicator.setStyleSheet("""
-            QLabel {
-                background-color: rgba(30, 64, 175, 0.2);
-                color: #93c5fd;
-                border: 1px solid #3b82f6;
-                border-radius: 5px;
-                padding: 8px 16px;
-                
-                font-size: 12px;
-                font-weight: bold;
-            }
+        self.repo_indicator.setStyleSheet(f"""
+            QLabel {{
+                background-color: transparent;
+                color: {COLOR_ACCENT_BLUE};
+                border: 1px solid {COLOR_ACCENT_DARK_BLUE};
+                border-radius: 0px;
+                padding: 6px 12px;
+                font-size: 11px;
+                font-weight: 500;
+                font-family: 'Courier New', monospace;
+            }}
         """)
         self.repo_indicator.setVisible(False)
         top_layout.addWidget(self.repo_indicator)
@@ -188,14 +201,14 @@ class BlueScreen(BaseScreen):
         self.setStyleSheet(GRADIENT_BACKGROUND)
         
         # Add content
-        title = QLabel("Project Overview + Instructions")
-        title.setStyleSheet("background-color: transparent;  font-size: 32px; font-weight: bold; color: #233a84;")
-        title.setFont(QFont("Redhawk", 32))
+        title = QLabel("Repository Overview")
+        title.setStyleSheet(f"background-color: transparent; font-size: 32px; font-weight: bold; color: {COLOR_ACCENT_BLUE};")
+        title.setFont(QFont("Courier New", 28, QFont.Bold))
         title.setAlignment(Qt.AlignCenter)
         self.add_content(title)
         
         description = QLabel("View the file structure and generate an instruction set for your repository.")
-        description.setStyleSheet("background-color: transparent;  font-size: 20px; color: #cbd5e1; text-align: center;")
+        description.setStyleSheet(f"background-color: transparent; font-size: 14px; color: {COLOR_TEXT_SECONDARY}; text-align: center;")
         description.setAlignment(Qt.AlignCenter)
         self.add_content(description)
         
@@ -209,13 +222,13 @@ class RedScreen(BaseScreen):
         
         # Add content
         title = QLabel("Fix #2")
-        title.setStyleSheet("background-color: transparent;  font-size: 32px; font-weight: bold; color: #721414;")
-        title.setFont(QFont("Redhawk", 32))
+        title.setStyleSheet(f"background-color: transparent; font-size: 32px; font-weight: bold; color: {COLOR_ACCENT_RED};")
+        title.setFont(QFont("Courier New", 28, QFont.Bold))
         title.setAlignment(Qt.AlignCenter)
         self.add_content(title)
         
         description = QLabel("This is the red screen for Fix #2\nYour implementation goes here")
-        description.setStyleSheet("background-color: transparent;  font-size: 20px; color: #cbd5e1; text-align: center;")
+        description.setStyleSheet(f"background-color: transparent; font-size: 14px; color: {COLOR_TEXT_SECONDARY}; text-align: center;")
         description.setAlignment(Qt.AlignCenter)
         self.add_content(description)
         
@@ -229,13 +242,13 @@ class GreenScreen(BaseScreen):
         
         # Add content
         title = QLabel("Fix #3")
-        title.setStyleSheet("background-color: transparent;  font-size: 32px; font-weight: bold; color: #10582a;")
-        title.setFont(QFont("Redhawk", 32))
+        title.setStyleSheet(f"background-color: transparent; font-size: 32px; font-weight: bold; color: {COLOR_SUCCESS};")
+        title.setFont(QFont("Courier New", 28, QFont.Bold))
         title.setAlignment(Qt.AlignCenter)
         self.add_content(title)
         
         description = QLabel("This is the green screen for Fix #3\nYour implementation goes here")
-        description.setStyleSheet("background-color: transparent;  font-size: 20px; color: #cbd5e1; text-align: center;")
+        description.setStyleSheet(f"background-color: transparent; font-size: 14px; color: {COLOR_TEXT_SECONDARY}; text-align: center;")
         description.setAlignment(Qt.AlignCenter)
         self.add_content(description)
         
@@ -254,13 +267,13 @@ class GitHubScreen(BaseScreen):
         
         # Title
         title = QLabel("Link GitHub Repository")
-        title.setStyleSheet("background-color: transparent;  font-size: 32px; font-weight: bold; color: #f0f9ff;")
+        title.setStyleSheet(f"background-color: transparent; font-size: 32px; font-weight: bold; color: {COLOR_ACCENT_BLUE};")
         title.setAlignment(Qt.AlignCenter)
         self.add_content(title)
         
         # Description
         description = QLabel("Enter your GitHub repository URL to link it to this project")
-        description.setStyleSheet("background-color: transparent;  font-size: 14px; color: #cbd5e1;")
+        description.setStyleSheet(f"background-color: transparent; font-size: 13px; color: {COLOR_TEXT_SECONDARY};")
         description.setAlignment(Qt.AlignCenter)
         self.add_content(description)
         
@@ -278,48 +291,49 @@ class GitHubScreen(BaseScreen):
         from PySide6.QtWidgets import QLineEdit
         self.repo_input = QLineEdit()
         self.repo_input.setPlaceholderText("https://github.com/username/repository")
-        self.repo_input.setStyleSheet("""
-            QLineEdit {
-                background-color: rgba(55, 65, 81, 0.4);
-                color: #f0f9ff;
-                border: 2px solid rgba(107, 114, 128, 0.3);
-                border-radius: 5px;
+        self.repo_input.setStyleSheet(f"""
+            QLineEdit {{
+                background-color: {COLOR_SURFACE};
+                color: {COLOR_TEXT_PRIMARY};
+                border: 1px solid {COLOR_SURFACE_LIGHT};
+                border-radius: 0px;
                 padding: 10px;
-                
-                font-size: 13px;
-            }
-            QLineEdit:focus {
-                border: 2px solid #ff8c00;
-                background-color: rgba(55, 65, 81, 0.6);
-            }
-            QLineEdit::placeholder {
-                color: rgba(148, 163, 184, 0.6);
-            }
+                font-size: 12px;
+                font-family: 'Courier New', monospace;
+            }}
+            QLineEdit:focus {{
+                border: 1px solid {COLOR_ACCENT_BLUE};
+                background-color: {COLOR_SURFACE_LIGHT};
+            }}
+            QLineEdit::placeholder {{
+                color: {COLOR_TEXT_SECONDARY};
+            }}
         """)
         self.repo_input.setMinimumHeight(40)
         input_layout.addWidget(self.repo_input)
         
         # Link button
         self.link_button = QPushButton("Link Repository")
-        self.link_button.setStyleSheet("""
-            QPushButton {
-                background-color: #1e40af;
-                color: white;
-                border: 3px solid transparent;
-                border-radius: 5px;
+        self.link_button.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {COLOR_ACCENT_DARK_BLUE};
+                color: {COLOR_TEXT_PRIMARY};
+                border: 1px solid {COLOR_ACCENT_BLUE};
+                border-radius: 0px;
                 padding: 10px 20px;
-                
-                font-size: 13px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #1e40af;
-                border: 3px solid #ff8c00;
-            }
-            QPushButton:pressed {
-                background-color: #1e3a8a;
-                border: 3px solid #ff8c00;
-            }
+                font-size: 12px;
+                font-weight: 500;
+                font-family: 'Courier New', monospace;
+            }}
+            QPushButton:hover {{
+                background-color: {COLOR_ACCENT_BLUE};
+                color: #0f1419;
+                border: 1px solid {COLOR_ACCENT_BLUE};
+            }}
+            QPushButton:pressed {{
+                background-color: {COLOR_ACCENT_BLUE};
+                color: #0f1419;
+            }}
         """)
         self.link_button.setCursor(Qt.PointingHandCursor)
         self.link_button.setFixedWidth(150)
@@ -336,43 +350,45 @@ class GitHubScreen(BaseScreen):
         progress_layout.setContentsMargins(0, 0, 0, 0)
         
         self.progress_bar = QProgressBar()
-        self.progress_bar.setStyleSheet("""
-            QProgressBar {
-                background-color: rgba(55, 65, 81, 0.4);
-                border: 2px solid rgba(107, 114, 128, 0.3);
-                border-radius: 5px;
+        self.progress_bar.setStyleSheet(f"""
+            QProgressBar {{
+                background-color: {COLOR_SURFACE};
+                border: 1px solid {COLOR_SURFACE_LIGHT};
+                border-radius: 0px;
                 height: 20px;
                 text-align: center;
-            }
-            QProgressBar::chunk {
-                background-color: #3b82f6;
-                border-radius: 3px;
-            }
+            }}
+            QProgressBar::chunk {{
+                background-color: {COLOR_ACCENT_BLUE};
+                border-radius: 0px;
+            }}
         """)
         self.progress_bar.setVisible(False)
         self.progress_bar.setMinimumHeight(25)
         progress_layout.addWidget(self.progress_bar)
         
         self.cancel_button = QPushButton("Cancel")
-        self.cancel_button.setStyleSheet("""
-            QPushButton {
-                background-color: rgba(127, 29, 29, 0.8);
-                color: white;
-                border: 3px solid transparent;
-                border-radius: 5px;
+        self.cancel_button.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {COLOR_SURFACE};
+                color: {COLOR_ERROR};
+                border: 1px solid {COLOR_SURFACE_LIGHT};
+                border-radius: 0px;
                 padding: 5px 15px;
-                
-                font-size: 12px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: rgba(127, 29, 29, 0.8);
-                border: 3px solid #ff8c00;
-            }
-            QPushButton:pressed {
-                background-color: rgba(127, 29, 29, 1);
-                border: 3px solid #ff8c00;
-            }
+                font-size: 11px;
+                font-weight: 500;
+                font-family: 'Courier New', monospace;
+            }}
+            QPushButton:hover {{
+                background-color: {COLOR_ERROR};
+                border: 1px solid {COLOR_ERROR};
+                color: #0f1419;
+            }}
+            QPushButton:pressed {{
+                background-color: {COLOR_ERROR};
+                border: 1px solid {COLOR_ERROR};
+                color: #0f1419;
+            }}
         """)
         self.cancel_button.setCursor(Qt.PointingHandCursor)
         self.cancel_button.setFixedWidth(80)
@@ -384,7 +400,7 @@ class GitHubScreen(BaseScreen):
         
         # Status label
         self.status_label = QLabel()
-        self.status_label.setStyleSheet("background-color: transparent;  font-size: 12px; color: #cbd5e1;")
+        self.status_label.setStyleSheet(f"background-color: transparent; font-size: 11px; color: {COLOR_TEXT_SECONDARY};")
         self.status_label.setAlignment(Qt.AlignCenter)
         self.add_content(self.status_label)
         
@@ -398,25 +414,27 @@ class GitHubScreen(BaseScreen):
         unlink_layout.addStretch()
         
         self.unlink_repo_button = QPushButton("✕ Unlink Repository")
-        self.unlink_repo_button.setStyleSheet("""
-            QPushButton {
-                background-color: rgba(127, 29, 29, 0.8);
-                color: white;
-                border: 3px solid transparent;
-                border-radius: 5px;
+        self.unlink_repo_button.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {COLOR_SURFACE};
+                color: {COLOR_ERROR};
+                border: 1px solid {COLOR_SURFACE_LIGHT};
+                border-radius: 0px;
                 padding: 8px 15px;
-                
-                font-size: 12px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: rgba(127, 29, 29, 0.8);
-                border: 3px solid #ff8c00;
-            }
-            QPushButton:pressed {
-                background-color: rgba(127, 29, 29, 1);
-                border: 3px solid #ff8c00;
-            }
+                font-size: 11px;
+                font-weight: 500;
+                font-family: 'Courier New', monospace;
+            }}
+            QPushButton:hover {{
+                background-color: {COLOR_ERROR};
+                border: 1px solid {COLOR_ERROR};
+                color: #0f1419;
+            }}
+            QPushButton:pressed {{
+                background-color: {COLOR_ERROR};
+                border: 1px solid {COLOR_ERROR};
+                color: #0f1419;
+            }}
         """)
         self.unlink_repo_button.setCursor(Qt.PointingHandCursor)
         self.unlink_repo_button.setVisible(False)
@@ -428,45 +446,45 @@ class GitHubScreen(BaseScreen):
         
         # File tree section (hidden by default)
         self.tree_section_label = QLabel("Repository Structure")
-        self.tree_section_label.setStyleSheet("background-color: transparent;  font-size: 13px; font-weight: bold; color: #cbd5e1;")
+        self.tree_section_label.setStyleSheet(f"background-color: transparent; font-size: 12px; font-weight: 600; color: {COLOR_TEXT_PRIMARY};")
         self.tree_section_label.setAlignment(Qt.AlignLeft)
         self.tree_section_label.setVisible(False)
         self.add_content(self.tree_section_label)
         
         # Tree view in a scrollable area
         self.tree_scroll = QScrollArea()
-        self.tree_scroll.setStyleSheet("""
-            QScrollArea {
-                background-color: rgba(55, 65, 81, 0.2);
-                border: 2px solid rgba(107, 114, 128, 0.3);
-                border-radius: 5px;
-            }
-            QScrollBar:vertical {
-                background-color: rgba(55, 65, 81, 0.3);
-                border-radius: 5px;
+        self.tree_scroll.setStyleSheet(f"""
+            QScrollArea {{
+                background-color: {COLOR_SURFACE};
+                border: 1px solid {COLOR_SURFACE_LIGHT};
+                border-radius: 0px;
+            }}
+            QScrollBar:vertical {{
+                background-color: {COLOR_SURFACE};
+                border-radius: 0px;
                 width: 8px;
-            }
-            QScrollBar::handle:vertical {
-                background-color: rgba(107, 114, 128, 0.5);
-                border-radius: 4px;
-            }
-            QScrollBar::handle:vertical:hover {
-                background-color: rgba(107, 114, 128, 0.7);
-            }
+            }}
+            QScrollBar::handle:vertical {{
+                background-color: {COLOR_SURFACE_LIGHT};
+                border-radius: 0px;
+            }}
+            QScrollBar::handle:vertical:hover {{
+                background-color: {COLOR_ACCENT_BLUE};
+            }}
         """)
         self.tree_scroll.setWidgetResizable(True)
         self.tree_scroll.setMaximumHeight(500)
         self.tree_scroll.setVisible(False)
         
         self.tree_text = QLabel()
-        self.tree_text.setStyleSheet("""
-            QLabel {
+        self.tree_text.setStyleSheet(f"""
+            QLabel {{
                 background-color: transparent;
-                color: #d1d5db;
+                color: {COLOR_TEXT_PRIMARY};
                 font-family: 'Courier New', monospace;
-                font-size: 11px;
+                font-size: 10px;
                 padding: 10px;
-            }
+            }}
         """)
         self.tree_text.setAlignment(Qt.AlignTop | Qt.AlignLeft)
         self.tree_text.setWordWrap(False)
@@ -514,7 +532,7 @@ class GitHubScreen(BaseScreen):
         """Update UI to show a linked repository."""
         self.hide_progress()
         self.status_label.setText(f"✓ Linked to: {repo_url}")
-        self.status_label.setStyleSheet("background-color: transparent;  font-size: 12px; color: #86efac;")
+        self.status_label.setStyleSheet(f"background-color: transparent; font-size: 11px; color: {COLOR_SUCCESS};")
         self.repo_input.setEnabled(False)
         self.link_button.setEnabled(False)
         self.unlink_repo_button.setVisible(True)
@@ -534,9 +552,9 @@ class GitHubScreen(BaseScreen):
         """Update the status label with optional error styling."""
         self.status_label.setText(text)
         if is_error:
-            self.status_label.setStyleSheet("background-color: transparent;  font-size: 12px; color: #fca5a5;")
+            self.status_label.setStyleSheet(f"background-color: transparent; font-size: 11px; color: {COLOR_ERROR};")
         else:
-            self.status_label.setStyleSheet("background-color: transparent;  font-size: 12px; color: #cbd5e1;")
+            self.status_label.setStyleSheet(f"background-color: transparent; font-size: 11px; color: {COLOR_TEXT_SECONDARY};")
     
     def show_file_tree(self, repo_folder_path):
         """Display the repository file structure."""

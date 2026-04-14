@@ -1,7 +1,8 @@
-=== App Started at 2026-04-14T16:41:49.568036 ===
-[2026-04-14 16:41:49] [INFO] Application started
-[2026-04-14 16:43:45] [INFO] User initiated download for: https://github.com/zpqrtbnk/test-repo
-[2026-04-14 16:43:45] [DEBUG] Starting download to: C:\Users\samue\OneDrive - Bournemouth University\Work\Third Year\Project\Artefact\ProjectTimeSaver\app\repos\test-repo
-[2026-04-14 16:43:47] [INFO] Download successful: Cloned repository successfully
-[2026-04-14 16:43:47] [INFO] Repository successfully linked and downloaded
-[2026-04-14 16:45:47] [INFO] Linked repo found: https://github.com/zpqrtbnk/test-repo
+=== App Started at 2026-04-14T17:05:36.363960 ===
+[2026-04-14 17:05:36] [INFO] Application started
+[2026-04-14 17:05:37] [INFO] Linked repo found: https://github.com/zpqrtbnk/test-repo
+[2026-04-14 17:05:59] [DEBUG] Unlink attempt 1 failed for C:\Users\samue\OneDrive - Bournemouth University\Work\Third Year\Project\Artefact\ProjectTimeSaver\app\repos\test-repo, retrying: [WinError 5] Access is denied: 'C:\\Users\\samue\\OneDrive - Bournemouth University\\Work\\Third Year\\Project\\Artefact\\ProjectTimeSaver\\app\\repos\\test-repo'
+[2026-04-14 17:05:59] [DEBUG] Unlink attempt 2 failed for C:\Users\samue\OneDrive - Bournemouth University\Work\Third Year\Project\Artefact\ProjectTimeSaver\app\repos\test-repo, retrying: [WinError 5] Access is denied: 'C:\\Users\\samue\\OneDrive - Bournemouth University\\Work\\Third Year\\Project\\Artefact\\ProjectTimeSaver\\app\\repos\\test-repo'
+[2026-04-14 17:06:00] [DEBUG] Successfully deleted repo folder using Windows rd command: C:\Users\samue\OneDrive - Bournemouth University\Work\Third Year\Project\Artefact\ProjectTimeSaver\app\repos\test-repo
+[2026-04-14 17:06:00] [DEBUG] Successfully deleted repo_info.txt
+[2026-04-14 17:06:00] [INFO] Repository unlinked successfully

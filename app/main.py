@@ -9,14 +9,22 @@ import repo_puller
 import threading
 from logger import AppLogger
 
-# Global gradient stylesheet
+# Modern dark theme with programmer-focused design
 GRADIENT_BACKGROUND = """
 QWidget {
-    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, 
-                                stop:0 #1f2937, 
-                                stop:1 #111827);
+    background-color: #0f1419;
 }
 """
+
+COLOR_PRIMARY_DARK = "#0f1419"
+COLOR_SURFACE = "#1a1f2e"
+COLOR_SURFACE_LIGHT = "#252d3d"
+COLOR_ACCENT_BLUE = "#00a8e8"
+COLOR_ACCENT_DARK_BLUE = "#0d47a1"
+COLOR_TEXT_PRIMARY = "#e0e0e0"
+COLOR_TEXT_SECONDARY = "#a0a0a0"
+COLOR_ERROR = "#ff5252"
+COLOR_SUCCESS = "#4caf50"
 
 class MainScreen(QWidget):
     """Main screen with navigation buttons."""
@@ -34,20 +42,20 @@ class MainScreen(QWidget):
 
         # Title
         title = QLabel("ProjectTimeSaver")
-        title.setStyleSheet("background-color: transparent;  font-size: 60px; font-weight: bold; color: #f0f9ff;")
+        title.setStyleSheet(f"background-color: transparent; font-size: 48px; font-weight: bold; color: {COLOR_ACCENT_BLUE}; letter-spacing: 2px;")
         title.setAlignment(Qt.AlignCenter)
-        title.setFont(QFont("Redhawk", 40))
+        title.setFont(QFont("Courier New", 32, QFont.Bold))
         layout.addWidget(title)
 
         # Subtitle
         subtitle = QLabel("Link a repository to get started")
-        subtitle.setStyleSheet("background-color: transparent;  font-size: 16px; color: #cbd5e1;")
+        subtitle.setStyleSheet(f"background-color: transparent; font-size: 14px; color: {COLOR_TEXT_SECONDARY}; letter-spacing: 0.5px;")
         subtitle.setAlignment(Qt.AlignCenter)
         layout.addWidget(subtitle)
-        layout.addSpacing(10)
+        layout.addSpacing(20)
         # Note: main navigation buttons moved to a collapsible sidebar in MainWindow.
         info = QLabel("Use the sidebar to navigate the main sections.")
-        info.setStyleSheet("background-color: transparent; font-size: 14px; color: #cbd5e1;")
+        info.setStyleSheet(f"background-color: transparent; font-size: 12px; color: {COLOR_TEXT_SECONDARY};")
         info.setAlignment(Qt.AlignCenter)
         layout.addWidget(info)
         
@@ -59,54 +67,54 @@ class MainScreen(QWidget):
         github_layout.setContentsMargins(0, 0, 0, 0)
         
         self.github_button = QPushButton("Link GitHub Repository")
-        self.github_button.setMinimumHeight(50)
-        self.github_button.setStyleSheet("""
-            QPushButton {
-                background-color: rgba(30, 41, 59, 0.8);
-                color: #333333;
-                border: 3px solid transparent;
-                border-radius: 8px;
-                
-                font-size: 14px;
-                font-weight: bold;
-                padding: 10px;
-            }
-            QPushButton:hover {
-                background-color: rgba(30, 41, 59, 0.8);
-                border: 3px solid #333333;
-                color: #f0f9ff;
-            }
-            QPushButton:pressed {
-                background-color: rgba(30, 41, 59, 0.9);
-                border: 3px solid #333333;
-            }
+        self.github_button.setMinimumHeight(48)
+        self.github_button.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {COLOR_SURFACE};
+                color: {COLOR_TEXT_PRIMARY};
+                border: 1px solid {COLOR_SURFACE_LIGHT};
+                border-radius: 0px;
+                font-size: 13px;
+                font-weight: 500;
+                padding: 10px 20px;
+                font-family: 'Courier New', monospace;
+            }}
+            QPushButton:hover {{
+                background-color: {COLOR_ACCENT_DARK_BLUE};
+                border: 1px solid {COLOR_ACCENT_BLUE};
+                color: {COLOR_ACCENT_BLUE};
+            }}
+            QPushButton:pressed {{
+                background-color: {COLOR_ACCENT_BLUE};
+                color: #0f1419;
+            }}
         """)
         self.github_button.setCursor(Qt.PointingHandCursor)
         self.github_button.clicked.connect(lambda: self.navigate(3))
         github_layout.addWidget(self.github_button)
         
         self.unlink_button = QPushButton("✕")
-        self.unlink_button.setFixedSize(50, 50)
-        self.unlink_button.setStyleSheet("""
-            QPushButton {
-                background-color: rgba(127, 29, 29, 0.8);
-                color: #ffffff;
-                border: 3px solid transparent;
-                border-radius: 5px;
+        self.unlink_button.setFixedSize(48, 48)
+        self.unlink_button.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {COLOR_SURFACE};
+                color: {COLOR_ERROR};
+                border: 1px solid {COLOR_SURFACE_LIGHT};
+                border-radius: 0px;
                 font-size: 18px;
                 font-weight: bold;
                 padding: 0px;
-            }
-            QPushButton:hover {
-                background-color: rgba(127, 29, 29, 0.8);
-                border: 3px solid #ff8c00;
-                color: white;
-            }
-            QPushButton:pressed {
-                background-color: rgba(127, 29, 29, 1);
-                border: 3px solid #ff8c00;
-                color: white;
-            }
+            }}
+            QPushButton:hover {{
+                background-color: {COLOR_ERROR};
+                border: 1px solid {COLOR_ERROR};
+                color: #0f1419;
+            }}
+            QPushButton:pressed {{
+                background-color: {COLOR_ERROR};
+                border: 1px solid {COLOR_ERROR};
+                color: #0f1419;
+            }}
         """)
         self.unlink_button.setCursor(Qt.PointingHandCursor)
         self.unlink_button.clicked.connect(self.unlink_repo)
@@ -124,48 +132,48 @@ class MainScreen(QWidget):
         """Update the GitHub button state to show if a repo is linked."""
         self.unlink_button.setEnabled(is_linked)
         if is_linked:
-            self.github_button.setStyleSheet("""
-                QPushButton {
-                    background-color: #15803d;
-                    color: #e2e8f0;
-                    border: 3px solid transparent;
-                    border-radius: 8px;
-                    
-                    font-size: 14px;
-                    font-weight: bold;
-                    padding: 10px;
-                }
-                QPushButton:hover {
-                    background-color: #15803d;
-                    border: 3px solid #ff8c00;
-                    color: #f0f9ff;
-                }
-                QPushButton:pressed {
-                    background-color: #166534;
-                    border: 3px solid #ff8c00;
-                }
+            self.github_button.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {COLOR_SUCCESS};
+                    color: #0f1419;
+                    border: 1px solid {COLOR_SUCCESS};
+                    border-radius: 0px;
+                    font-size: 13px;
+                    font-weight: 500;
+                    padding: 10px 20px;
+                    font-family: 'Courier New', monospace;
+                }}
+                QPushButton:hover {{
+                    background-color: {COLOR_SURFACE};
+                    border: 1px solid {COLOR_SUCCESS};
+                    color: {COLOR_SUCCESS};
+                }}
+                QPushButton:pressed {{
+                    background-color: {COLOR_SUCCESS};
+                    border: 1px solid {COLOR_SUCCESS};
+                }}
             """)
         else:
-            self.github_button.setStyleSheet("""
-                QPushButton {
-                    background-color: #1E293B;
-                    color: #e2e8f0;
-                    border: 3px solid transparent;
-                    border-radius: 8px;
-                    
-                    font-size: 14px;
-                    font-weight: bold;
-                    padding: 10px;
-                }
-                QPushButton:hover {
-                    background-color: rgba(30, 41, 59, 0.8);
-                    border: 3px solid #ff8c00;
-                    color: #f0f9ff;
-                }
-                QPushButton:pressed {
-                    background-color: rgba(30, 41, 59, 0.9);
-                    border: 3px solid #ff8c00;
-                }
+            self.github_button.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {COLOR_SURFACE};
+                    color: {COLOR_TEXT_PRIMARY};
+                    border: 1px solid {COLOR_SURFACE_LIGHT};
+                    border-radius: 0px;
+                    font-size: 13px;
+                    font-weight: 500;
+                    padding: 10px 20px;
+                    font-family: 'Courier New', monospace;
+                }}
+                QPushButton:hover {{
+                    background-color: {COLOR_ACCENT_DARK_BLUE};
+                    border: 1px solid {COLOR_ACCENT_BLUE};
+                    color: {COLOR_ACCENT_BLUE};
+                }}
+                QPushButton:pressed {{
+                    background-color: {COLOR_ACCENT_BLUE};
+                    border: 1px solid {COLOR_ACCENT_BLUE};
+                }}
             """)
 
 
@@ -221,7 +229,7 @@ class MainWindow(QMainWindow):
         # Create a main container with a collapsible sidebar on the left
         self.sidebar = QWidget()
         self.sidebar.setObjectName("sidebar")
-        self.sidebar.setStyleSheet("#sidebar { background-color: rgba(30,41,59,0.95); }")
+        self.sidebar.setStyleSheet(f"#sidebar {{ background-color: {COLOR_SURFACE}; border-right: 1px solid {COLOR_SURFACE_LIGHT}; }}")
         self.sidebar.setFixedWidth(260)
         sidebar_layout = QVBoxLayout(self.sidebar)
         sidebar_layout.setContentsMargins(10, 10, 10, 10)
@@ -230,7 +238,7 @@ class MainWindow(QMainWindow):
         # Sidebar toggle (collapse/expand)
         self.sidebar_toggle = QPushButton("☰")
         self.sidebar_toggle.setFixedSize(36, 36)
-        self.sidebar_toggle.setStyleSheet("background-color: transparent; color: #e2e8f0; font-size: 18px; border: none;")
+        self.sidebar_toggle.setStyleSheet(f"background-color: transparent; color: {COLOR_ACCENT_BLUE}; font-size: 18px; border: none; font-weight: bold;")
         self.sidebar_toggle.setCursor(Qt.PointingHandCursor)
         self.sidebar_toggle.clicked.connect(self.toggle_sidebar)
         top_row = QWidget()
@@ -243,34 +251,34 @@ class MainWindow(QMainWindow):
         # Navigation buttons in sidebar
         self.sidebar_buttons = []
         buttons_data = [
-            ("Repo Overview", 0, "#1E293B", "#233a84"),
-            ("FIX #2", 1, "#1E293B", "#721414"),
-            ("FIX #3", 2, "#1E293B", "#10582a"),
+            ("Repo Overview", 0, COLOR_ACCENT_DARK_BLUE),
+            ("FIX #2", 1, "#c41c3b"),
+            ("FIX #3", 2, COLOR_SUCCESS),
         ]
-        for label, index, bg_color, text_color in buttons_data:
+        for label, index, accent_color in buttons_data:
             btn = QPushButton(label)
-            btn.setMinimumHeight(80)
-            # slightly darker background for sidebar buttons
+            btn.setMinimumHeight(70)
             btn.setStyleSheet(f"""
                 QPushButton {{
-                    background-color: #111827;
-                    color: {text_color};
-                    border: 3px solid transparent;
-                    border-radius: 10px;
-                    font-family: 'Redhawk', sans-serif;
-                    font-size: 20px;
-                    font-weight: bold;
+                    background-color: transparent;
+                    color: {COLOR_TEXT_PRIMARY};
+                    border: 1px solid {COLOR_SURFACE_LIGHT};
+                    border-radius: 0px;
+                    font-family: 'Courier New', monospace;
+                    font-size: 12px;
+                    font-weight: 600;
                     padding: 10px;
+                    text-align: left;
                 }}
                 QPushButton:hover {{
-                    background-color: #0f1720;
-                    color: {text_color};
-                    border: 3px solid {text_color};
+                    background-color: {COLOR_SURFACE_LIGHT};
+                    color: {accent_color};
+                    border: 1px solid {accent_color};
                 }}
                 QPushButton:pressed {{
-                    background-color: #0b1220;
-                    color: {text_color};
-                    border: 3px solid #ff8c00;
+                    background-color: {accent_color};
+                    color: #0f1419;
+                    border: 1px solid {accent_color};
                 }}
             """)
             btn.setCursor(Qt.PointingHandCursor)
@@ -287,46 +295,47 @@ class MainWindow(QMainWindow):
         github_row_layout.setSpacing(8)
 
         self.sidebar_github_button = QPushButton("Link GitHub Repository")
-        self.sidebar_github_button.setMinimumHeight(50)
-        self.sidebar_github_button.setStyleSheet("""
-            QPushButton {
-                background-color: #1E293B;
-                color: #e2e8f0;
-                border: 3px solid transparent;
-                border-radius: 8px;
-                font-size: 14px;
-                font-weight: bold;
+        self.sidebar_github_button.setMinimumHeight(48)
+        self.sidebar_github_button.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {COLOR_SURFACE_LIGHT};
+                color: {COLOR_TEXT_PRIMARY};
+                border: 1px solid {COLOR_SURFACE_LIGHT};
+                border-radius: 0px;
+                font-size: 11px;
+                font-weight: 500;
                 padding: 10px;
-            }
-            QPushButton:hover {
-                background-color: rgba(30, 41, 59, 0.9);
-                border: 3px solid #ff8c00;
-                color: #f0f9ff;
-            }
-            QPushButton:pressed {
-                background-color: rgba(30, 41, 59, 1);
-                border: 3px solid #ff8c00;
-            }
+                font-family: 'Courier New', monospace;
+            }}
+            QPushButton:hover {{
+                background-color: {COLOR_ACCENT_DARK_BLUE};
+                border: 1px solid {COLOR_ACCENT_BLUE};
+                color: {COLOR_ACCENT_BLUE};
+            }}
+            QPushButton:pressed {{
+                background-color: {COLOR_ACCENT_BLUE};
+                color: #0f1419;
+            }}
         """)
         self.sidebar_github_button.setCursor(Qt.PointingHandCursor)
         self.sidebar_github_button.clicked.connect(lambda: self.navigate_to_screen(3))
 
         self.sidebar_unlink_button = QPushButton("✕")
         self.sidebar_unlink_button.setFixedSize(40, 40)
-        self.sidebar_unlink_button.setStyleSheet("""
-            QPushButton {
-                background-color: rgba(127, 29, 29, 0.8);
-                color: #ffffff;
-                border: 3px solid transparent;
-                border-radius: 6px;
+        self.sidebar_unlink_button.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {COLOR_SURFACE_LIGHT};
+                color: {COLOR_ERROR};
+                border: 1px solid {COLOR_SURFACE_LIGHT};
+                border-radius: 0px;
                 font-size: 16px;
                 font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: rgba(127, 29, 29, 0.9);
-                border: 3px solid #ff8c00;
-                color: white;
-            }
+            }}
+            QPushButton:hover {{
+                background-color: {COLOR_ERROR};
+                border: 1px solid {COLOR_ERROR};
+                color: #0f1419;
+            }}
         """)
         self.sidebar_unlink_button.setCursor(Qt.PointingHandCursor)
         self.sidebar_unlink_button.clicked.connect(self.unlink_repo)
@@ -634,51 +643,53 @@ class MainWindow(QMainWindow):
         try:
             if is_linked and repo_url:
                 repo_name = repo_url.rstrip('/').split('/')[-1].replace('.git', '')
-                text = f"Linked: {repo_name}"
+                text = f"✓ {repo_name}"
                 # set green linked style
-                self.sidebar_github_button.setStyleSheet("""
-                    QPushButton {
-                        background-color: #15803d;
-                        color: #e2e8f0;
-                        border: 3px solid transparent;
-                        border-radius: 8px;
-                        font-size: 14px;
-                        font-weight: bold;
+                self.sidebar_github_button.setStyleSheet(f"""
+                    QPushButton {{
+                        background-color: {COLOR_SUCCESS};
+                        color: #0f1419;
+                        border: 1px solid {COLOR_SUCCESS};
+                        border-radius: 0px;
+                        font-size: 11px;
+                        font-weight: 600;
                         padding: 10px;
-                    }
-                    QPushButton:hover {
-                        background-color: #15803d;
-                        border: 3px solid #ff8c00;
-                        color: #f0f9ff;
-                    }
-                    QPushButton:pressed {
-                        background-color: #166534;
-                        border: 3px solid #ff8c00;
-                    }
+                        font-family: 'Courier New', monospace;
+                    }}
+                    QPushButton:hover {{
+                        background-color: {COLOR_SURFACE};
+                        border: 1px solid {COLOR_SUCCESS};
+                        color: {COLOR_SUCCESS};
+                    }}
+                    QPushButton:pressed {{
+                        background-color: {COLOR_SUCCESS};
+                        color: #0f1419;
+                    }}
                 """)
                 self.sidebar_github_button.setText(text)
                 self.sidebar_unlink_button.setEnabled(True)
             else:
                 # default unlinked style
-                self.sidebar_github_button.setStyleSheet("""
-                    QPushButton {
-                        background-color: #1E293B;
-                        color: #e2e8f0;
-                        border: 3px solid transparent;
-                        border-radius: 8px;
-                        font-size: 14px;
-                        font-weight: bold;
+                self.sidebar_github_button.setStyleSheet(f"""
+                    QPushButton {{
+                        background-color: {COLOR_SURFACE_LIGHT};
+                        color: {COLOR_TEXT_PRIMARY};
+                        border: 1px solid {COLOR_SURFACE_LIGHT};
+                        border-radius: 0px;
+                        font-size: 11px;
+                        font-weight: 500;
                         padding: 10px;
-                    }
-                    QPushButton:hover {
-                        background-color: rgba(30, 41, 59, 0.9);
-                        border: 3px solid #ff8c00;
-                        color: #f0f9ff;
-                    }
-                    QPushButton:pressed {
-                        background-color: rgba(30, 41, 59, 1);
-                        border: 3px solid #ff8c00;
-                    }
+                        font-family: 'Courier New', monospace;
+                    }}
+                    QPushButton:hover {{
+                        background-color: {COLOR_ACCENT_DARK_BLUE};
+                        border: 1px solid {COLOR_ACCENT_BLUE};
+                        color: {COLOR_ACCENT_BLUE};
+                    }}
+                    QPushButton:pressed {{
+                        background-color: {COLOR_ACCENT_BLUE};
+                        color: #0f1419;
+                    }}
                 """)
                 self.sidebar_github_button.setText("Link GitHub Repository")
                 self.sidebar_unlink_button.setEnabled(False)
