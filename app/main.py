@@ -34,7 +34,7 @@ class MainScreen(QWidget):
 
         # Title
         title = QLabel("ProjectTimeSaver")
-        title.setStyleSheet("background-color: transparent;  font-size: 40px; font-weight: bold; color: #f0f9ff;")
+        title.setStyleSheet("background-color: transparent;  font-size: 60px; font-weight: bold; color: #f0f9ff;")
         title.setAlignment(Qt.AlignCenter)
         title.setFont(QFont("Redhawk", 40))
         layout.addWidget(title)
@@ -235,6 +235,7 @@ class MainWindow(QMainWindow):
         self.sidebar_toggle.clicked.connect(self.toggle_sidebar)
         top_row = QWidget()
         top_row_layout = QHBoxLayout(top_row)
+        top_row_layout.addItem("spcaer")
         top_row_layout.setContentsMargins(0, 0, 0, 0)
         top_row_layout.addWidget(self.sidebar_toggle)
         top_row_layout.addStretch()
@@ -257,6 +258,7 @@ class MainWindow(QMainWindow):
                     color: {text_color};
                     border: 3px solid transparent;
                     border-radius: 10px;
+                    font-family: 'Redhawk', sans-serif;
                     font-size: 20px;
                     font-weight: bold;
                     padding: 10px;

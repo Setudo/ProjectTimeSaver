@@ -1,5 +1,6 @@
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QProgressBar, QScrollArea
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QFont
 import os
 
 # Global gradient stylesheet
@@ -187,12 +188,13 @@ class BlueScreen(BaseScreen):
         self.setStyleSheet(GRADIENT_BACKGROUND)
         
         # Add content
-        title = QLabel("Fix #1")
-        title.setStyleSheet("background-color: transparent;  font-size: 32px; font-weight: bold; color: #93c5fd;")
+        title = QLabel("Project Overview + Instructions")
+        title.setStyleSheet("background-color: transparent;  font-size: 32px; font-weight: bold; color: #233a84;")
+        title.setFont(QFont("Redhawk", 32))
         title.setAlignment(Qt.AlignCenter)
         self.add_content(title)
         
-        description = QLabel("Project Overview + Instructions\nYour implementation goes here")
+        description = QLabel("View the file structure and generate an instruction set for your repository.")
         description.setStyleSheet("background-color: transparent;  font-size: 20px; color: #cbd5e1; text-align: center;")
         description.setAlignment(Qt.AlignCenter)
         self.add_content(description)
@@ -207,12 +209,13 @@ class RedScreen(BaseScreen):
         
         # Add content
         title = QLabel("Fix #2")
-        title.setStyleSheet("background-color: transparent;  font-size: 32px; font-weight: bold; color: #fca5a5;")
+        title.setStyleSheet("background-color: transparent;  font-size: 32px; font-weight: bold; color: #721414;")
+        title.setFont(QFont("Redhawk", 32))
         title.setAlignment(Qt.AlignCenter)
         self.add_content(title)
         
         description = QLabel("This is the red screen for Fix #2\nYour implementation goes here")
-        description.setStyleSheet("background-color: transparent;  font-size: 14px; color: #cbd5e1; text-align: center;")
+        description.setStyleSheet("background-color: transparent;  font-size: 20px; color: #cbd5e1; text-align: center;")
         description.setAlignment(Qt.AlignCenter)
         self.add_content(description)
         
@@ -226,12 +229,13 @@ class GreenScreen(BaseScreen):
         
         # Add content
         title = QLabel("Fix #3")
-        title.setStyleSheet("background-color: transparent;  font-size: 32px; font-weight: bold; color: #86efac;")
+        title.setStyleSheet("background-color: transparent;  font-size: 32px; font-weight: bold; color: #10582a;")
+        title.setFont(QFont("Redhawk", 32))
         title.setAlignment(Qt.AlignCenter)
         self.add_content(title)
         
         description = QLabel("This is the green screen for Fix #3\nYour implementation goes here")
-        description.setStyleSheet("background-color: transparent;  font-size: 14px; color: #cbd5e1; text-align: center;")
+        description.setStyleSheet("background-color: transparent;  font-size: 20px; color: #cbd5e1; text-align: center;")
         description.setAlignment(Qt.AlignCenter)
         self.add_content(description)
         
