@@ -30,7 +30,7 @@ class MainScreen(QWidget):
     def init_ui(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(40, 40, 40, 40)
-        layout.setSpacing(30)
+        layout.setSpacing(10)
 
         # Title
         title = QLabel("ProjectTimeSaver")
@@ -40,23 +40,23 @@ class MainScreen(QWidget):
         layout.addWidget(title)
 
         # Subtitle
-        subtitle = QLabel("Select a fix to apply")
-        subtitle.setStyleSheet("background-color: transparent;  font-size: 14px; color: #cbd5e1;")
+        subtitle = QLabel("Link a repository to get started")
+        subtitle.setStyleSheet("background-color: transparent;  font-size: 16px; color: #cbd5e1;")
         subtitle.setAlignment(Qt.AlignCenter)
         layout.addWidget(subtitle)
 
-        layout.addSpacing(20)
+        layout.addSpacing(5)
 
         # Button container
         button_container = QWidget()
         button_container.setStyleSheet("background-color: transparent;")
         button_layout = QVBoxLayout(button_container)
-        button_layout.setSpacing(15)
+        button_layout.setSpacing(20)
 
         buttons_data = [
-            ("FIX #1", 0, "#1e40af", "#333333"),
-            ("FIX #2", 1, "#721414", "#333333"),
-            ("FIX #3", 2, "#10582a", "#333333"),
+            ("Overview + Instructions", 0, "#1E293B", "#233a84"),
+            ("FIX #2", 1, "#1E293B", "#721414"),
+            ("FIX #3", 2, "#1E293B", "#10582a"),
         ]
 
         for label, index, bg_color, text_color in buttons_data:
@@ -67,16 +67,16 @@ class MainScreen(QWidget):
                     background-color: {bg_color};
                     color: {text_color};
                     border: 3px solid transparent;
-                    border-radius: 8px;
+                    border-radius: 10px;
                     
-                    font-size: 16px;
+                    font-size: 24px;
                     font-weight: bold;
                     padding: 10px;
                 }}
                 QPushButton:hover {{
                     background-color: {bg_color};
                     color: {text_color};
-                    border: 3px solid #ff8c00;
+                    border: 3px solid {text_color};
                 }}
                 QPushButton:pressed {{
                     background-color: {bg_color};
@@ -102,7 +102,7 @@ class MainScreen(QWidget):
         self.github_button.setStyleSheet("""
             QPushButton {
                 background-color: rgba(30, 41, 59, 0.8);
-                color: #e2e8f0;
+                color: #333333;
                 border: 3px solid transparent;
                 border-radius: 8px;
                 
@@ -112,12 +112,12 @@ class MainScreen(QWidget):
             }
             QPushButton:hover {
                 background-color: rgba(30, 41, 59, 0.8);
-                border: 3px solid #ff8c00;
+                border: 3px solid #333333;
                 color: #f0f9ff;
             }
             QPushButton:pressed {
                 background-color: rgba(30, 41, 59, 0.9);
-                border: 3px solid #ff8c00;
+                border: 3px solid #333333;
             }
         """)
         self.github_button.setCursor(Qt.PointingHandCursor)
@@ -184,7 +184,7 @@ class MainScreen(QWidget):
         else:
             self.github_button.setStyleSheet("""
                 QPushButton {
-                    background-color: rgba(30, 41, 59, 0.8);
+                    background-color: #1E293B;
                     color: #e2e8f0;
                     border: 3px solid transparent;
                     border-radius: 8px;

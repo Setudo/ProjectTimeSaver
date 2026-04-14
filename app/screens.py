@@ -12,7 +12,7 @@ QWidget {
 """
 
 
-def generate_tree_structure(folder_path, prefix="", max_depth=5, current_depth=0, ignore_folders={'.git', '__pycache__', '.pytest_cache', 'node_modules', '.venv', 'venv'}):
+def generate_tree_structure(folder_path, prefix="", max_depth=10, current_depth=0, ignore_folders={'.git', '__pycache__', '.pytest_cache', 'node_modules', '.venv', 'venv'}):
     """
     Generate a tree structure representation of a folder.
     Returns a list of strings representing the tree.
@@ -192,8 +192,8 @@ class BlueScreen(BaseScreen):
         title.setAlignment(Qt.AlignCenter)
         self.add_content(title)
         
-        description = QLabel("This is the blue screen for Fix #1\nYour implementation goes here")
-        description.setStyleSheet("background-color: transparent;  font-size: 14px; color: #cbd5e1; text-align: center;")
+        description = QLabel("Project Overview + Instructions\nYour implementation goes here")
+        description.setStyleSheet("background-color: transparent;  font-size: 20px; color: #cbd5e1; text-align: center;")
         description.setAlignment(Qt.AlignCenter)
         self.add_content(description)
         
