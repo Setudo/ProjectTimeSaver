@@ -235,7 +235,6 @@ class MainWindow(QMainWindow):
         self.sidebar_toggle.clicked.connect(self.toggle_sidebar)
         top_row = QWidget()
         top_row_layout = QHBoxLayout(top_row)
-        top_row_layout.addItem("spcaer")
         top_row_layout.setContentsMargins(0, 0, 0, 0)
         top_row_layout.addWidget(self.sidebar_toggle)
         top_row_layout.addStretch()
@@ -707,5 +706,6 @@ if __name__ == "__main__":
     app.setFont(QFont("Inter", 10))
 
     window = MainWindow()
+    window.toggle_sidebar()  # Start with sidebar collapsed
     window.show()
     sys.exit(app.exec())

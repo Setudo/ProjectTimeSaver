@@ -1,2 +1,7 @@
-=== App Started at 2026-04-14T14:26:28.925471 ===
-[2026-04-14 14:26:28] [INFO] Application started
+=== App Started at 2026-04-14T16:41:49.568036 ===
+[2026-04-14 16:41:49] [INFO] Application started
+[2026-04-14 16:43:45] [INFO] User initiated download for: https://github.com/zpqrtbnk/test-repo
+[2026-04-14 16:43:45] [DEBUG] Starting download to: C:\Users\samue\OneDrive - Bournemouth University\Work\Third Year\Project\Artefact\ProjectTimeSaver\app\repos\test-repo
+[2026-04-14 16:43:47] [INFO] Download successful: Cloned repository successfully
+[2026-04-14 16:43:47] [INFO] Repository successfully linked and downloaded
+[2026-04-14 16:45:47] [INFO] Linked repo found: https://github.com/zpqrtbnk/test-repo
