@@ -36,6 +36,7 @@ class MainScreen(QWidget):
         title = QLabel("ProjectTimeSaver")
         title.setStyleSheet("background-color: transparent;  font-size: 40px; font-weight: bold; color: #f0f9ff;")
         title.setAlignment(Qt.AlignCenter)
+        title.setFont(QFont("Redhawk", 40))
         layout.addWidget(title)
 
         # Subtitle
@@ -490,11 +491,13 @@ if __name__ == "__main__":
     # APPLICATION FONT
     base_dir = os.path.dirname(os.path.abspath(__file__))
 
+    title_font = os.path.join(base_dir, "fonts", "Redhawk.otf")
     regular_font = os.path.join(base_dir, "fonts", "Inter-Regular.otf")
     bold_font = os.path.join(base_dir, "fonts", "Inter-Bold.otf")
 
     QFontDatabase.addApplicationFont(regular_font)
     QFontDatabase.addApplicationFont(bold_font)
+    QFontDatabase.addApplicationFont(title_font)
 
     app.setFont(QFont("Inter", 10))
 
