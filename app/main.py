@@ -44,51 +44,12 @@ class MainScreen(QWidget):
         subtitle.setStyleSheet("background-color: transparent;  font-size: 16px; color: #cbd5e1;")
         subtitle.setAlignment(Qt.AlignCenter)
         layout.addWidget(subtitle)
-
-        layout.addSpacing(5)
-
-        # Button container
-        button_container = QWidget()
-        button_container.setStyleSheet("background-color: transparent;")
-        button_layout = QVBoxLayout(button_container)
-        button_layout.setSpacing(20)
-
-        buttons_data = [
-            ("Overview + Instructions", 0, "#1E293B", "#233a84"),
-            ("FIX #2", 1, "#1E293B", "#721414"),
-            ("FIX #3", 2, "#1E293B", "#10582a"),
-        ]
-
-        for label, index, bg_color, text_color in buttons_data:
-            btn = QPushButton(label)
-            btn.setMinimumHeight(80)
-            btn.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: {bg_color};
-                    color: {text_color};
-                    border: 3px solid transparent;
-                    border-radius: 10px;
-                    
-                    font-size: 24px;
-                    font-weight: bold;
-                    padding: 10px;
-                }}
-                QPushButton:hover {{
-                    background-color: {bg_color};
-                    color: {text_color};
-                    border: 3px solid {text_color};
-                }}
-                QPushButton:pressed {{
-                    background-color: {bg_color};
-                    color: {text_color};
-                    border: 3px solid #ff8c00;
-                }}
-            """)
-            btn.setCursor(Qt.PointingHandCursor)
-            btn.clicked.connect(lambda checked=False, idx=index: self.navigate(idx))
-            button_layout.addWidget(btn)
-
-        layout.addWidget(button_container)
+        layout.addSpacing(10)
+        # Note: main navigation buttons moved to a collapsible sidebar in MainWindow.
+        info = QLabel("Use the sidebar to navigate the main sections.")
+        info.setStyleSheet("background-color: transparent; font-size: 14px; color: #cbd5e1;")
+        info.setAlignment(Qt.AlignCenter)
+        layout.addWidget(info)
         
         # GitHub button with unlink option
         github_container = QWidget()
@@ -155,6 +116,9 @@ class MainScreen(QWidget):
         layout.addWidget(github_container)
         
         layout.addStretch()
+        # hide main-screen github controls since they are moved to the sidebar
+        self.github_button.setVisible(False)
+        self.unlink_button.setVisible(False)
     
     def set_repo_linked(self, is_linked):
         """Update the GitHub button state to show if a repo is linked."""
@@ -254,7 +218,132 @@ class MainWindow(QMainWindow):
         self.github_screen.cancel_download.connect(self.on_cancel_download)
         self.github_screen.unlink_repo_button.clicked.connect(self.unlink_repo)
 
-        self.setCentralWidget(self.stacked)
+        # Create a main container with a collapsible sidebar on the left
+        self.sidebar = QWidget()
+        self.sidebar.setObjectName("sidebar")
+        self.sidebar.setStyleSheet("#sidebar { background-color: rgba(30,41,59,0.95); }")
+        self.sidebar.setFixedWidth(260)
+        sidebar_layout = QVBoxLayout(self.sidebar)
+        sidebar_layout.setContentsMargins(10, 10, 10, 10)
+        sidebar_layout.setSpacing(12)
+
+        # Sidebar toggle (collapse/expand)
+        self.sidebar_toggle = QPushButton("☰")
+        self.sidebar_toggle.setFixedSize(36, 36)
+        self.sidebar_toggle.setStyleSheet("background-color: transparent; color: #e2e8f0; font-size: 18px; border: none;")
+        self.sidebar_toggle.setCursor(Qt.PointingHandCursor)
+        self.sidebar_toggle.clicked.connect(self.toggle_sidebar)
+        top_row = QWidget()
+        top_row_layout = QHBoxLayout(top_row)
+        top_row_layout.setContentsMargins(0, 0, 0, 0)
+        top_row_layout.addWidget(self.sidebar_toggle)
+        top_row_layout.addStretch()
+        sidebar_layout.addWidget(top_row)
+
+        # Navigation buttons in sidebar
+        self.sidebar_buttons = []
+        buttons_data = [
+            ("Repo Overview", 0, "#1E293B", "#233a84"),
+            ("FIX #2", 1, "#1E293B", "#721414"),
+            ("FIX #3", 2, "#1E293B", "#10582a"),
+        ]
+        for label, index, bg_color, text_color in buttons_data:
+            btn = QPushButton(label)
+            btn.setMinimumHeight(80)
+            # slightly darker background for sidebar buttons
+            btn.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: #111827;
+                    color: {text_color};
+                    border: 3px solid transparent;
+                    border-radius: 10px;
+                    font-size: 20px;
+                    font-weight: bold;
+                    padding: 10px;
+                }}
+                QPushButton:hover {{
+                    background-color: #0f1720;
+                    color: {text_color};
+                    border: 3px solid {text_color};
+                }}
+                QPushButton:pressed {{
+                    background-color: #0b1220;
+                    color: {text_color};
+                    border: 3px solid #ff8c00;
+                }}
+            """)
+            btn.setCursor(Qt.PointingHandCursor)
+            btn.clicked.connect(lambda checked=False, idx=index: self.navigate_to_screen(idx))
+            sidebar_layout.addWidget(btn)
+            self.sidebar_buttons.append(btn)
+
+        sidebar_layout.addStretch()
+        # GitHub link + unlink controls in sidebar
+        github_row = QWidget()
+        github_row.setStyleSheet("background-color: transparent;")
+        github_row_layout = QHBoxLayout(github_row)
+        github_row_layout.setContentsMargins(0, 0, 0, 0)
+        github_row_layout.setSpacing(8)
+
+        self.sidebar_github_button = QPushButton("Link GitHub Repository")
+        self.sidebar_github_button.setMinimumHeight(50)
+        self.sidebar_github_button.setStyleSheet("""
+            QPushButton {
+                background-color: #1E293B;
+                color: #e2e8f0;
+                border: 3px solid transparent;
+                border-radius: 8px;
+                font-size: 14px;
+                font-weight: bold;
+                padding: 10px;
+            }
+            QPushButton:hover {
+                background-color: rgba(30, 41, 59, 0.9);
+                border: 3px solid #ff8c00;
+                color: #f0f9ff;
+            }
+            QPushButton:pressed {
+                background-color: rgba(30, 41, 59, 1);
+                border: 3px solid #ff8c00;
+            }
+        """)
+        self.sidebar_github_button.setCursor(Qt.PointingHandCursor)
+        self.sidebar_github_button.clicked.connect(lambda: self.navigate_to_screen(3))
+
+        self.sidebar_unlink_button = QPushButton("✕")
+        self.sidebar_unlink_button.setFixedSize(40, 40)
+        self.sidebar_unlink_button.setStyleSheet("""
+            QPushButton {
+                background-color: rgba(127, 29, 29, 0.8);
+                color: #ffffff;
+                border: 3px solid transparent;
+                border-radius: 6px;
+                font-size: 16px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: rgba(127, 29, 29, 0.9);
+                border: 3px solid #ff8c00;
+                color: white;
+            }
+        """)
+        self.sidebar_unlink_button.setCursor(Qt.PointingHandCursor)
+        self.sidebar_unlink_button.clicked.connect(self.unlink_repo)
+        self.sidebar_unlink_button.setEnabled(False)
+
+        github_row_layout.addWidget(self.sidebar_github_button)
+        github_row_layout.addWidget(self.sidebar_unlink_button)
+        sidebar_layout.addWidget(github_row)
+
+        # Main container (sidebar + stacked content)
+        main_container = QWidget()
+        main_layout = QHBoxLayout(main_container)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+        main_layout.addWidget(self.sidebar)
+        main_layout.addWidget(self.stacked)
+
+        self.setCentralWidget(main_container)
         self.stacked.setCurrentIndex(0)
         
         # Track current repo
@@ -278,6 +367,8 @@ class MainWindow(QMainWindow):
                     self.current_repo_url = f.read().strip()
                     self.main_screen.set_repo_linked(True)
                     self._update_all_screens_repo_info()
+                    # Update sidebar controls
+                    self.update_sidebar_repo_state(True, self.current_repo_url)
                     
                     # Also prepare the file tree for the GitHub screen
                     repo_name = self.current_repo_url.rstrip('/').split('/')[-1].replace('.git', '')
@@ -290,6 +381,11 @@ class MainWindow(QMainWindow):
         else:
             self.current_repo_url = None
             self.main_screen.set_repo_linked(False)
+            # Update sidebar to show unlinked state
+            try:
+                self.update_sidebar_repo_state(False)
+            except Exception:
+                pass
     
     def _update_all_screens_repo_info(self):
         """Update all screens with current repo info."""
@@ -376,6 +472,11 @@ class MainWindow(QMainWindow):
                     
                     self.main_screen.set_repo_linked(True)
                     self._update_all_screens_repo_info()
+                    # Update sidebar controls as linked
+                    try:
+                        self.update_sidebar_repo_state(True, repo_url)
+                    except Exception:
+                        pass
                     self.logger.info("Repository successfully linked and downloaded")
                 except Exception as e:
                     error_msg = f"Error saving repo info: {str(e)}"
@@ -473,6 +574,10 @@ class MainWindow(QMainWindow):
             self.github_screen.update()  # Force UI update
             self.main_screen.set_repo_linked(False)
             self._update_all_screens_repo_info()
+            try:
+                self.update_sidebar_repo_state(False)
+            except Exception:
+                pass
             
             # If we're on the GitHub screen, go back to main screen after unlinking
             if self.stacked.currentIndex() == 3:
@@ -483,6 +588,104 @@ class MainWindow(QMainWindow):
             error_msg = f"Error unlinking repository: {str(e)}"
             print(error_msg)
             self.logger.error(error_msg)
+
+    def toggle_sidebar(self):
+        """Collapse or expand the sidebar."""
+        try:
+            collapsed_width = 56
+            expanded_width = 260
+            current = self.sidebar.width()
+            if current > collapsed_width:
+                self.sidebar.setFixedWidth(collapsed_width)
+                # hide everything except the sidebar toggle button
+                try:
+                    for b in getattr(self, 'sidebar_buttons', []):
+                        b.setVisible(False)
+                except Exception:
+                    pass
+                try:
+                    if hasattr(self, 'sidebar_github_button'):
+                        self.sidebar_github_button.setVisible(False)
+                    if hasattr(self, 'sidebar_unlink_button'):
+                        self.sidebar_unlink_button.setVisible(False)
+                except Exception:
+                    pass
+            else:
+                self.sidebar.setFixedWidth(expanded_width)
+                # show the sidebar contents again
+                try:
+                    for b in getattr(self, 'sidebar_buttons', []):
+                        b.setVisible(True)
+                except Exception:
+                    pass
+                try:
+                    if hasattr(self, 'sidebar_github_button'):
+                        self.sidebar_github_button.setVisible(True)
+                    if hasattr(self, 'sidebar_unlink_button'):
+                        self.sidebar_unlink_button.setVisible(True)
+                except Exception:
+                    pass
+        except Exception as e:
+            self.logger.error(f"Error toggling sidebar: {str(e)}")
+
+    def update_sidebar_repo_state(self, is_linked, repo_url=None):
+        """Update the sidebar GitHub button and unlink button state."""
+        try:
+            if is_linked and repo_url:
+                repo_name = repo_url.rstrip('/').split('/')[-1].replace('.git', '')
+                text = f"Linked: {repo_name}"
+                # set green linked style
+                self.sidebar_github_button.setStyleSheet("""
+                    QPushButton {
+                        background-color: #15803d;
+                        color: #e2e8f0;
+                        border: 3px solid transparent;
+                        border-radius: 8px;
+                        font-size: 14px;
+                        font-weight: bold;
+                        padding: 10px;
+                    }
+                    QPushButton:hover {
+                        background-color: #15803d;
+                        border: 3px solid #ff8c00;
+                        color: #f0f9ff;
+                    }
+                    QPushButton:pressed {
+                        background-color: #166534;
+                        border: 3px solid #ff8c00;
+                    }
+                """)
+                self.sidebar_github_button.setText(text)
+                self.sidebar_unlink_button.setEnabled(True)
+            else:
+                # default unlinked style
+                self.sidebar_github_button.setStyleSheet("""
+                    QPushButton {
+                        background-color: #1E293B;
+                        color: #e2e8f0;
+                        border: 3px solid transparent;
+                        border-radius: 8px;
+                        font-size: 14px;
+                        font-weight: bold;
+                        padding: 10px;
+                    }
+                    QPushButton:hover {
+                        background-color: rgba(30, 41, 59, 0.9);
+                        border: 3px solid #ff8c00;
+                        color: #f0f9ff;
+                    }
+                    QPushButton:pressed {
+                        background-color: rgba(30, 41, 59, 1);
+                        border: 3px solid #ff8c00;
+                    }
+                """)
+                self.sidebar_github_button.setText("Link GitHub Repository")
+                self.sidebar_unlink_button.setEnabled(False)
+        except Exception as e:
+            try:
+                self.logger.error(f"Error updating sidebar repo state: {str(e)}")
+            except Exception:
+                pass
 
 
 if __name__ == "__main__":
