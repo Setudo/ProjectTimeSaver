@@ -3,6 +3,7 @@ import os
 import shutil
 from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QStackedWidget, QLabel
 from PySide6.QtCore import Qt, QThread, Signal, QObject
+from PySide6.QtGui import QFontDatabase, QFont # Used to change fonts (as long as they are downloaded)
 from screens import BlueScreen, RedScreen, GreenScreen, GitHubScreen
 import repo_puller
 import threading
@@ -16,7 +17,6 @@ QWidget {
                                 stop:1 #111827);
 }
 """
-
 
 class MainScreen(QWidget):
     """Main screen with navigation buttons."""
@@ -34,13 +34,13 @@ class MainScreen(QWidget):
 
         # Title
         title = QLabel("ProjectTimeSaver")
-        title.setStyleSheet("background-color: transparent; font-family: 'Segoe UI', 'Inter', sans-serif; font-size: 36px; font-weight: bold; color: #f0f9ff;")
+        title.setStyleSheet("background-color: transparent;  font-size: 40px; font-weight: bold; color: #f0f9ff;")
         title.setAlignment(Qt.AlignCenter)
         layout.addWidget(title)
 
         # Subtitle
         subtitle = QLabel("Select a fix to apply")
-        subtitle.setStyleSheet("background-color: transparent; font-family: 'Segoe UI', 'Inter', sans-serif; font-size: 14px; color: #cbd5e1;")
+        subtitle.setStyleSheet("background-color: transparent;  font-size: 14px; color: #cbd5e1;")
         subtitle.setAlignment(Qt.AlignCenter)
         layout.addWidget(subtitle)
 
@@ -53,9 +53,9 @@ class MainScreen(QWidget):
         button_layout.setSpacing(15)
 
         buttons_data = [
-            ("FIX #1", 0, "#1e40af", "#60a5fa"),
-            ("FIX #2", 1, "#991b1b", "#f87171"),
-            ("FIX #3", 2, "#15803d", "#4ade80"),
+            ("FIX #1", 0, "#1e40af", "#333333"),
+            ("FIX #2", 1, "#721414", "#333333"),
+            ("FIX #3", 2, "#10582a", "#333333"),
         ]
 
         for label, index, bg_color, text_color in buttons_data:
@@ -67,7 +67,7 @@ class MainScreen(QWidget):
                     color: {text_color};
                     border: 3px solid transparent;
                     border-radius: 8px;
-                    font-family: 'Segoe UI', 'Inter', sans-serif;
+                    
                     font-size: 16px;
                     font-weight: bold;
                     padding: 10px;
@@ -104,7 +104,7 @@ class MainScreen(QWidget):
                 color: #e2e8f0;
                 border: 3px solid transparent;
                 border-radius: 8px;
-                font-family: 'Segoe UI', 'Inter', sans-serif;
+                
                 font-size: 14px;
                 font-weight: bold;
                 padding: 10px;
@@ -165,7 +165,7 @@ class MainScreen(QWidget):
                     color: #e2e8f0;
                     border: 3px solid transparent;
                     border-radius: 8px;
-                    font-family: 'Segoe UI', 'Inter', sans-serif;
+                    
                     font-size: 14px;
                     font-weight: bold;
                     padding: 10px;
@@ -187,7 +187,7 @@ class MainScreen(QWidget):
                     color: #e2e8f0;
                     border: 3px solid transparent;
                     border-radius: 8px;
-                    font-family: 'Segoe UI', 'Inter', sans-serif;
+                    
                     font-size: 14px;
                     font-weight: bold;
                     padding: 10px;
@@ -486,6 +486,18 @@ class MainWindow(QMainWindow):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
+
+    # APPLICATION FONT
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+
+    regular_font = os.path.join(base_dir, "fonts", "Inter-Regular.otf")
+    bold_font = os.path.join(base_dir, "fonts", "Inter-Bold.otf")
+
+    QFontDatabase.addApplicationFont(regular_font)
+    QFontDatabase.addApplicationFont(bold_font)
+
+    app.setFont(QFont("Inter", 10))
+
     window = MainWindow()
     window.show()
     sys.exit(app.exec())

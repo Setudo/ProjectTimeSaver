@@ -112,7 +112,7 @@ class BaseScreen(QWidget):
                 border: 3px solid transparent;
                 border-radius: 5px;
                 padding: 10px 20px;
-                font-family: 'Segoe UI', 'Inter', sans-serif;
+                
                 font-size: 13px;
                 font-weight: bold;
             }
@@ -141,7 +141,7 @@ class BaseScreen(QWidget):
                 border: 1px solid #3b82f6;
                 border-radius: 5px;
                 padding: 8px 16px;
-                font-family: 'Segoe UI', 'Inter', sans-serif;
+                
                 font-size: 12px;
                 font-weight: bold;
             }
@@ -188,12 +188,12 @@ class BlueScreen(BaseScreen):
         
         # Add content
         title = QLabel("Fix #1")
-        title.setStyleSheet("background-color: transparent; font-family: 'Segoe UI', 'Inter', sans-serif; font-size: 32px; font-weight: bold; color: #93c5fd;")
+        title.setStyleSheet("background-color: transparent;  font-size: 32px; font-weight: bold; color: #93c5fd;")
         title.setAlignment(Qt.AlignCenter)
         self.add_content(title)
         
         description = QLabel("This is the blue screen for Fix #1\nYour implementation goes here")
-        description.setStyleSheet("background-color: transparent; font-family: 'Segoe UI', 'Inter', sans-serif; font-size: 14px; color: #cbd5e1; text-align: center;")
+        description.setStyleSheet("background-color: transparent;  font-size: 14px; color: #cbd5e1; text-align: center;")
         description.setAlignment(Qt.AlignCenter)
         self.add_content(description)
         
@@ -207,12 +207,12 @@ class RedScreen(BaseScreen):
         
         # Add content
         title = QLabel("Fix #2")
-        title.setStyleSheet("background-color: transparent; font-family: 'Segoe UI', 'Inter', sans-serif; font-size: 32px; font-weight: bold; color: #fca5a5;")
+        title.setStyleSheet("background-color: transparent;  font-size: 32px; font-weight: bold; color: #fca5a5;")
         title.setAlignment(Qt.AlignCenter)
         self.add_content(title)
         
         description = QLabel("This is the red screen for Fix #2\nYour implementation goes here")
-        description.setStyleSheet("background-color: transparent; font-family: 'Segoe UI', 'Inter', sans-serif; font-size: 14px; color: #cbd5e1; text-align: center;")
+        description.setStyleSheet("background-color: transparent;  font-size: 14px; color: #cbd5e1; text-align: center;")
         description.setAlignment(Qt.AlignCenter)
         self.add_content(description)
         
@@ -226,12 +226,12 @@ class GreenScreen(BaseScreen):
         
         # Add content
         title = QLabel("Fix #3")
-        title.setStyleSheet("background-color: transparent; font-family: 'Segoe UI', 'Inter', sans-serif; font-size: 32px; font-weight: bold; color: #86efac;")
+        title.setStyleSheet("background-color: transparent;  font-size: 32px; font-weight: bold; color: #86efac;")
         title.setAlignment(Qt.AlignCenter)
         self.add_content(title)
         
         description = QLabel("This is the green screen for Fix #3\nYour implementation goes here")
-        description.setStyleSheet("background-color: transparent; font-family: 'Segoe UI', 'Inter', sans-serif; font-size: 14px; color: #cbd5e1; text-align: center;")
+        description.setStyleSheet("background-color: transparent;  font-size: 14px; color: #cbd5e1; text-align: center;")
         description.setAlignment(Qt.AlignCenter)
         self.add_content(description)
         
@@ -250,13 +250,13 @@ class GitHubScreen(BaseScreen):
         
         # Title
         title = QLabel("Link GitHub Repository")
-        title.setStyleSheet("background-color: transparent; font-family: 'Segoe UI', 'Inter', sans-serif; font-size: 32px; font-weight: bold; color: #f0f9ff;")
+        title.setStyleSheet("background-color: transparent;  font-size: 32px; font-weight: bold; color: #f0f9ff;")
         title.setAlignment(Qt.AlignCenter)
         self.add_content(title)
         
         # Description
         description = QLabel("Enter your GitHub repository URL to link it to this project")
-        description.setStyleSheet("background-color: transparent; font-family: 'Segoe UI', 'Inter', sans-serif; font-size: 14px; color: #cbd5e1;")
+        description.setStyleSheet("background-color: transparent;  font-size: 14px; color: #cbd5e1;")
         description.setAlignment(Qt.AlignCenter)
         self.add_content(description)
         
@@ -281,7 +281,7 @@ class GitHubScreen(BaseScreen):
                 border: 2px solid rgba(107, 114, 128, 0.3);
                 border-radius: 5px;
                 padding: 10px;
-                font-family: 'Segoe UI', 'Inter', sans-serif;
+                
                 font-size: 13px;
             }
             QLineEdit:focus {
@@ -304,7 +304,7 @@ class GitHubScreen(BaseScreen):
                 border: 3px solid transparent;
                 border-radius: 5px;
                 padding: 10px 20px;
-                font-family: 'Segoe UI', 'Inter', sans-serif;
+                
                 font-size: 13px;
                 font-weight: bold;
             }
@@ -357,7 +357,7 @@ class GitHubScreen(BaseScreen):
                 border: 3px solid transparent;
                 border-radius: 5px;
                 padding: 5px 15px;
-                font-family: 'Segoe UI', 'Inter', sans-serif;
+                
                 font-size: 12px;
                 font-weight: bold;
             }
@@ -380,7 +380,7 @@ class GitHubScreen(BaseScreen):
         
         # Status label
         self.status_label = QLabel()
-        self.status_label.setStyleSheet("background-color: transparent; font-family: 'Segoe UI', 'Inter', sans-serif; font-size: 12px; color: #cbd5e1;")
+        self.status_label.setStyleSheet("background-color: transparent;  font-size: 12px; color: #cbd5e1;")
         self.status_label.setAlignment(Qt.AlignCenter)
         self.add_content(self.status_label)
         
@@ -401,7 +401,7 @@ class GitHubScreen(BaseScreen):
                 border: 3px solid transparent;
                 border-radius: 5px;
                 padding: 8px 15px;
-                font-family: 'Segoe UI', 'Inter', sans-serif;
+                
                 font-size: 12px;
                 font-weight: bold;
             }
@@ -424,7 +424,7 @@ class GitHubScreen(BaseScreen):
         
         # File tree section (hidden by default)
         self.tree_section_label = QLabel("Repository Structure")
-        self.tree_section_label.setStyleSheet("background-color: transparent; font-family: 'Segoe UI', 'Inter', sans-serif; font-size: 13px; font-weight: bold; color: #cbd5e1;")
+        self.tree_section_label.setStyleSheet("background-color: transparent;  font-size: 13px; font-weight: bold; color: #cbd5e1;")
         self.tree_section_label.setAlignment(Qt.AlignLeft)
         self.tree_section_label.setVisible(False)
         self.add_content(self.tree_section_label)
@@ -451,7 +451,7 @@ class GitHubScreen(BaseScreen):
             }
         """)
         self.tree_scroll.setWidgetResizable(True)
-        self.tree_scroll.setMaximumHeight(300)
+        self.tree_scroll.setMaximumHeight(500)
         self.tree_scroll.setVisible(False)
         
         self.tree_text = QLabel()
@@ -510,7 +510,7 @@ class GitHubScreen(BaseScreen):
         """Update UI to show a linked repository."""
         self.hide_progress()
         self.status_label.setText(f"✓ Linked to: {repo_url}")
-        self.status_label.setStyleSheet("background-color: transparent; font-family: 'Segoe UI', 'Inter', sans-serif; font-size: 12px; color: #86efac;")
+        self.status_label.setStyleSheet("background-color: transparent;  font-size: 12px; color: #86efac;")
         self.repo_input.setEnabled(False)
         self.link_button.setEnabled(False)
         self.unlink_repo_button.setVisible(True)
@@ -530,9 +530,9 @@ class GitHubScreen(BaseScreen):
         """Update the status label with optional error styling."""
         self.status_label.setText(text)
         if is_error:
-            self.status_label.setStyleSheet("background-color: transparent; font-family: 'Segoe UI', 'Inter', sans-serif; font-size: 12px; color: #fca5a5;")
+            self.status_label.setStyleSheet("background-color: transparent;  font-size: 12px; color: #fca5a5;")
         else:
-            self.status_label.setStyleSheet("background-color: transparent; font-family: 'Segoe UI', 'Inter', sans-serif; font-size: 12px; color: #cbd5e1;")
+            self.status_label.setStyleSheet("background-color: transparent;  font-size: 12px; color: #cbd5e1;")
     
     def show_file_tree(self, repo_folder_path):
         """Display the repository file structure."""
