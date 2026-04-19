@@ -9,6 +9,7 @@ try:
     Llama = llama_cpp.Llama
     _LLAMA_CPP_AVAILABLE = True
 except Exception:
+    print("NO AI AVAILABLE")
     Llama = None
     _LLAMA_CPP_AVAILABLE = False
 
