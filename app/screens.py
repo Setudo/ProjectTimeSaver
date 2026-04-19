@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QProgressBar, QScrollArea
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QProgressBar, QScrollArea, QTextEdit
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont
 import os
@@ -196,6 +196,8 @@ class BaseScreen(QWidget):
 
 
 class BlueScreen(BaseScreen):
+    repo_overview_requested = Signal()
+
     def __init__(self):
         super().__init__()
         self.setStyleSheet(GRADIENT_BACKGROUND)
@@ -211,8 +213,75 @@ class BlueScreen(BaseScreen):
         description.setStyleSheet(f"background-color: transparent; font-size: 14px; color: {COLOR_TEXT_SECONDARY}; text-align: center;")
         description.setAlignment(Qt.AlignCenter)
         self.add_content(description)
-        
+
+        controls_container = QWidget()
+        controls_container.setStyleSheet("background-color: transparent;")
+        controls_layout = QHBoxLayout(controls_container)
+        controls_layout.setSpacing(12)
+        controls_layout.setContentsMargins(0, 0, 0, 0)
+
+        button_style = f"""
+            QPushButton {{
+                background-color: {COLOR_SURFACE};
+                color: {COLOR_TEXT_PRIMARY};
+                border: 1px solid {COLOR_SURFACE_LIGHT};
+                border-radius: 0px;
+                padding: 10px 16px;
+                font-size: 12px;
+                font-weight: 600;
+                font-family: 'Courier New', monospace;
+            }}
+            QPushButton:hover {{
+                background-color: {COLOR_SURFACE_LIGHT};
+                border: 1px solid {COLOR_ACCENT_BLUE};
+                color: {COLOR_ACCENT_BLUE};
+            }}
+            QPushButton:pressed {{
+                background-color: {COLOR_ACCENT_BLUE};
+                color: #0f1419;
+            }}
+        """
+
+        self.overview_button = QPushButton("Generate repo overview")
+        self.overview_button.setStyleSheet(button_style)
+        self.overview_button.setCursor(Qt.PointingHandCursor)
+        self.overview_button.setEnabled(False)
+        self.overview_button.clicked.connect(lambda checked=False: self.repo_overview_requested.emit())
+        controls_layout.addWidget(self.overview_button)
+
+        self.instructions_button = QPushButton("Usage instructions")
+        self.instructions_button.setStyleSheet(button_style)
+        self.instructions_button.setCursor(Qt.PointingHandCursor)
+        self.instructions_button.setEnabled(False)
+        self.instructions_button.setToolTip("Coming soon")
+        controls_layout.addWidget(self.instructions_button)
+
+        self.tree_button = QPushButton("Interactive tree")
+        self.tree_button.setStyleSheet(button_style)
+        self.tree_button.setCursor(Qt.PointingHandCursor)
+        self.tree_button.setEnabled(False)
+        self.tree_button.setToolTip("Coming soon")
+        controls_layout.addWidget(self.tree_button)
+
+        self.add_content(controls_container)
+
+        self.overview_output = QTextEdit()
+        self.overview_output.setReadOnly(True)
+        self.overview_output.setMinimumHeight(260)
+        self.overview_output.setStyleSheet(f"background-color: {COLOR_SURFACE}; color: {COLOR_TEXT_PRIMARY}; border: 1px solid {COLOR_SURFACE_LIGHT}; font-family: 'Courier New', monospace; font-size: 12px;")
+        self.overview_output.setPlaceholderText("Repository overview will appear here after generation.")
+        self.add_content(self.overview_output)
+
         self.add_stretch()
+
+    def set_repo_ready_state(self, enabled: bool):
+        self.overview_button.setEnabled(enabled)
+        if not enabled:
+            self.overview_output.clear()
+            self.overview_output.setPlaceholderText("Link a repository to enable overview generation.")
+
+    def set_overview_text(self, text: str):
+        self.overview_output.setPlainText(text)
 
 
 class RedScreen(BaseScreen):

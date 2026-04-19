@@ -38,6 +38,10 @@ class AppLogger:
         """Log an error message."""
         self.log(message, "ERROR")
 
+    def exception(self, message: str):
+        """Log an exception message."""
+        self.log(message, "EXCEPTION")
+
     def warning(self, message: str):
         """Log a warning message."""
         self.log(message, "WARNING")

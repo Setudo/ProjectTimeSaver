@@ -2,10 +2,11 @@ import sys
 import os
 import shutil
 from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QStackedWidget, QLabel
-from PySide6.QtCore import Qt, QThread, Signal, QObject
+from PySide6.QtCore import Qt, QThread, Signal, QObject, QTimer
 from PySide6.QtGui import QFontDatabase, QFont # Used to change fonts (as long as they are downloaded)
 from screens import BlueScreen, RedScreen, GreenScreen, GitHubScreen
 import repo_puller
+from overview import generate_repo_overview, generate_file_overview
 import threading
 from logger import AppLogger
 
@@ -188,6 +189,7 @@ class MainWindow(QMainWindow):
         self.app_dir = os.path.dirname(__file__)
         self.repos_folder = os.path.join(self.app_dir, "repos")
         self.logger = AppLogger(self.app_dir)
+        self._install_exception_hook()
         self.logger.info("Application started")
         self.ensure_repos_folder()
 
@@ -208,6 +210,8 @@ class MainWindow(QMainWindow):
         self.red_screen = RedScreen()
         self.green_screen = GreenScreen()
         self.github_screen = GitHubScreen()
+
+        self.blue_screen.repo_overview_requested.connect(self.on_generate_repo_overview)
 
         self.stacked.addWidget(self.blue_screen)
         self.stacked.addWidget(self.red_screen)
@@ -362,6 +366,22 @@ class MainWindow(QMainWindow):
         # Check if repo is already linked
         self.check_and_update_repo_status()
 
+    def _install_exception_hook(self):
+        def handle_exception(exc_type, exc_value, exc_traceback):
+            if issubclass(exc_type, KeyboardInterrupt):
+                sys.__excepthook__(exc_type, exc_value, exc_traceback)
+                return
+            error_message = f"Uncaught exception: {exc_value}"
+            self.logger.exception(error_message)
+            self.logger.exception("""Traceback:
+""")
+            import traceback
+            traceback_text = ''.join(traceback.format_exception(exc_type, exc_value, exc_traceback))
+            self.logger.exception(traceback_text)
+            sys.__excepthook__(exc_type, exc_value, exc_traceback)
+
+        sys.excepthook = handle_exception
+
     def ensure_repos_folder(self):
         """Ensure the repos subfolder exists."""
         if not os.path.exists(self.repos_folder):
@@ -383,7 +403,12 @@ class MainWindow(QMainWindow):
                     # Also prepare the file tree for the GitHub screen
                     repo_name = self.current_repo_url.rstrip('/').split('/')[-1].replace('.git', '')
                     repo_folder = os.path.join(self.repos_folder, repo_name)
-                    self.github_screen.show_file_tree(repo_folder)
+                    if os.path.isdir(repo_folder):
+                        self.github_screen.show_file_tree(repo_folder)
+                        self.blue_screen.set_repo_ready_state(True)
+                    else:
+                        self.logger.warning(f"Linked repo folder not found: {repo_folder}")
+                        self.blue_screen.set_repo_ready_state(False)
                     
                     self.logger.info(f"Linked repo found: {self.current_repo_url}")
             except Exception as e:
@@ -391,6 +416,7 @@ class MainWindow(QMainWindow):
         else:
             self.current_repo_url = None
             self.main_screen.set_repo_linked(False)
+            self.blue_screen.set_repo_ready_state(False)
             # Update sidebar to show unlinked state
             try:
                 self.update_sidebar_repo_state(False)
@@ -399,10 +425,18 @@ class MainWindow(QMainWindow):
     
     def _update_all_screens_repo_info(self):
         """Update all screens with current repo info."""
+        repo_folder = self._get_repo_folder()
         self.blue_screen.set_repo_info(self.current_repo_url)
         self.red_screen.set_repo_info(self.current_repo_url)
         self.green_screen.set_repo_info(self.current_repo_url)
         self.github_screen.set_repo_info(self.current_repo_url)
+        self.blue_screen.set_repo_ready_state(bool(repo_folder and os.path.isdir(repo_folder)))
+
+    def _get_repo_folder(self):
+        if not self.current_repo_url:
+            return None
+        repo_name = self.current_repo_url.rstrip('/').split('/')[-1].replace('.git', '')
+        return os.path.join(self.repos_folder, repo_name)
 
     def navigate_to_screen(self, index):
         """Navigate to a specific screen (0-2 for detail screens, 3 for github)."""
@@ -413,6 +447,60 @@ class MainWindow(QMainWindow):
         """Return to the main screen."""
         self.stacked.setCurrentIndex(0)
         self.check_and_update_repo_status()
+
+    def on_generate_repo_overview(self):
+        repo_folder = self._get_repo_folder()
+        self.logger.info("User requested repository overview generation")
+        if not repo_folder or not os.path.isdir(repo_folder):
+            self.blue_screen.set_overview_text("No linked repository folder is available. Please link a repository first.")
+            self.logger.warning("Repository overview requested but no linked folder was available")
+            return
+
+        self.blue_screen.set_overview_text("Generating repository overview. This may take a moment...")
+
+        class OverviewWorker(QObject):
+            finished = Signal(str, bool)
+
+            def __init__(self, folder_path, repo_url, logger_ref):
+                super().__init__()
+                self.folder_path = folder_path
+                self.repo_url = repo_url
+                self.logger = logger_ref
+
+            def run(self):
+                try:
+                    self.logger.info(f"Overview worker started for folder: {self.folder_path}")
+                    summary = generate_repo_overview(self.folder_path, self.repo_url)
+                    self.logger.info("Overview worker completed generation")
+                    self.finished.emit(summary, True)
+                except Exception as exc:
+                    self.logger.error(f"Overview generation failed: {str(exc)}")
+                    self.finished.emit(f"Overview generation failed: {str(exc)}", False)
+
+        self.overview_worker = OverviewWorker(repo_folder, self.current_repo_url, self.logger)
+        self.overview_thread = QThread()
+        self.overview_worker.moveToThread(self.overview_thread)
+
+        def _apply_overview_result(text, success):
+            try:
+                self.blue_screen.set_overview_text(text)
+            except Exception as exc:
+                self.logger.error(f"Failed to update overview text in main thread: {exc}")
+            finally:
+                self.overview_thread.quit()
+                if success:
+                    self.logger.info("Repository overview generation completed successfully")
+                else:
+                    self.logger.warning("Repository overview generation failed")
+
+        def _on_overview_finished(text, success):
+            QTimer.singleShot(0, lambda: _apply_overview_result(text, success))
+
+        self.overview_worker.finished.connect(_on_overview_finished, Qt.QueuedConnection)
+        self.overview_worker.finished.connect(self.overview_worker.deleteLater, Qt.QueuedConnection)
+        self.overview_thread.finished.connect(self.overview_thread.deleteLater)
+        self.overview_thread.started.connect(self.overview_worker.run)
+        self.overview_thread.start()
 
     def on_repo_linked(self, repo_url):
         """Handle repository linking by downloading the repo in a background thread."""
