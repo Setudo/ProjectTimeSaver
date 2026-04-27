@@ -4,6 +4,8 @@ import re
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from config import MAX_TOKENS, TEMPERATURE # Imports config values for AI generation (saved in config.toml)
+
 try:
     llama_cpp = importlib.import_module("llama_cpp")
     Llama = llama_cpp.Llama
@@ -152,7 +154,7 @@ def _generate_with_llama(prompt: str) -> Optional[str]:
 
     try:
         llama = Llama(model_path=model_path)
-        response = llama.create(prompt=prompt, max_tokens=1024, temperature=0.2)
+        response = llama.create(prompt=prompt, max_tokens=MAX_TOKENS, temperature=TEMPERATURE) # Sets prompt values to config
         text = response.get("choices", [{}])[0].get("text")
         return text.strip() if isinstance(text, str) else None
     except Exception:

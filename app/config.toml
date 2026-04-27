@@ -1,0 +1,6 @@
+[ai]
+MAX_TOKENS = 1024
+TEMP - 0.4
+
+[repo]
+MAX_DOWNLOAD_SIZE_MB = 200

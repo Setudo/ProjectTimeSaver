@@ -6,7 +6,7 @@ Behavior:
 - Normalize GitHub URLs (https, git@, .git suffixes).
 - Prefer `git clone --depth 1` when `git` is available.
 - Fall back to downloading the repository ZIP archive and extracting.
-- Enforce MAX_DOWNLOAD_BYTES (abort and clean up if exceeded).
+- Enforce MAX_REPO_SIZE_BYTES (abort and clean up if exceeded).
 - Return (success: bool, message: str).
 """
 from __future__ import annotations
@@ -25,8 +25,8 @@ try:
 except Exception:  # pragma: no cover - requests may not be installed in dev env
     requests = None
 
-# 200 MiB default maximum download size
-MAX_DOWNLOAD_BYTES = 200 * 1024 * 1024
+from config import MAX_REPO_SIZE_BYTES  # Configurable max download size (in bytes)
+
 
 GITHUB_API_BASE = "https://api.github.com/repos"
 
@@ -228,7 +228,7 @@ def _download_zip_and_extract(owner: str, repo: str, branch: str, dest: Path, ma
         return False, f"Failed to download archive: {str(e)}"
 
 
-def download_repo(repo_url: str, destination_folder: str, max_bytes: int = MAX_DOWNLOAD_BYTES, progress_callback=None) -> Tuple[bool, str]:
+def download_repo(repo_url: str, destination_folder: str, max_bytes: int = MAX_REPO_SIZE_BYTES, progress_callback=None) -> Tuple[bool, str]:
     """Download a GitHub repository into `destination_folder`.
 
     Returns (success, message).
