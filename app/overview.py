@@ -122,7 +122,7 @@ def _build_prompt(repo_folder_path: str, repo_url: Optional[str] = None) -> str:
     metadata = _compute_repo_metadata(repo_folder_path)
     prompt_parts = [
         "You are a helpful assistant that summarizes code repositories.",
-        "Read the repository description and top file contents below, then provide a short overview of the purpose of the repo.",
+        "Read the repository description and top file contents below, then provide a detailed overview of the purpose of the repo.",
         f"Repository path: {repo_folder_path}",
     ]
     if repo_url:
@@ -134,7 +134,7 @@ def _build_prompt(repo_folder_path: str, repo_url: Optional[str] = None) -> str:
         "Repository source content:\n",
         repo_text,
     ])
-    prompt_parts.append("\nWrite a concise summary of what this repository is for and how a developer might use it.")
+    prompt_parts.append("\nWrite a detailed summary of what this repository is for and how a developer might use it.")
     return "\n".join(prompt_parts)
 
 
@@ -152,7 +152,7 @@ def _generate_with_llama(prompt: str) -> Optional[str]:
 
     try:
         llama = Llama(model_path=model_path)
-        response = llama.create(prompt=prompt, max_tokens=256, temperature=0.2)
+        response = llama.create(prompt=prompt, max_tokens=1024, temperature=0.2)
         text = response.get("choices", [{}])[0].get("text")
         return text.strip() if isinstance(text, str) else None
     except Exception:
@@ -212,7 +212,7 @@ def generate_file_overview(file_path: str) -> str:
             "You are a helpful assistant summarizing a source file.\n"
             f"File name: {path.name}\n"
             f"File contents:\n{content}\n\n"
-            "Provide a concise overview of this file's purpose and main responsibilities."
+            "Provide a detailed overview of this file's purpose and main responsibilities."
         )
         result = _generate_with_llama(prompt)
         if result:

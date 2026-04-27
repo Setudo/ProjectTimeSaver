@@ -481,26 +481,24 @@ class MainWindow(QMainWindow):
         self.overview_thread = QThread()
         self.overview_worker.moveToThread(self.overview_thread)
 
-        def _apply_overview_result(text, success):
-            try:
-                self.blue_screen.set_overview_text(text)
-            except Exception as exc:
-                self.logger.error(f"Failed to update overview text in main thread: {exc}")
-            finally:
-                self.overview_thread.quit()
-                if success:
-                    self.logger.info("Repository overview generation completed successfully")
-                else:
-                    self.logger.warning("Repository overview generation failed")
-
-        def _on_overview_finished(text, success):
-            QTimer.singleShot(0, lambda: _apply_overview_result(text, success))
-
-        self.overview_worker.finished.connect(_on_overview_finished, Qt.QueuedConnection)
+        self.overview_worker.finished.connect(self._handle_overview_result, Qt.QueuedConnection)
         self.overview_worker.finished.connect(self.overview_worker.deleteLater, Qt.QueuedConnection)
         self.overview_thread.finished.connect(self.overview_thread.deleteLater)
         self.overview_thread.started.connect(self.overview_worker.run)
         self.overview_thread.start()
+
+    def _handle_overview_result(self, text: str, success: bool):
+        try:
+            self.blue_screen.set_overview_text(text)
+        except Exception as exc:
+            self.logger.error(f"Failed to update overview text in main thread: {exc}")
+        finally:
+            if hasattr(self, 'overview_thread') and self.overview_thread:
+                self.overview_thread.quit()
+            if success:
+                self.logger.info("Repository overview generation completed successfully")
+            else:
+                self.logger.warning("Repository overview generation failed")
 
     def on_repo_linked(self, repo_url):
         """Handle repository linking by downloading the repo in a background thread."""
