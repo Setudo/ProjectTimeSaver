@@ -1,6 +1,7 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QProgressBar, QScrollArea, QTextEdit
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QProgressBar, QScrollArea, QTextEdit, QTreeWidget, QTreeWidgetItem, QSplitter
+from PySide6.QtCore import Qt, Signal, QUrl
 from PySide6.QtGui import QFont
+from pathlib import Path
 import os
 
 # Modern dark theme with programmer-focused design
@@ -197,11 +198,14 @@ class BaseScreen(QWidget):
 
 class BlueScreen(BaseScreen):
     repo_overview_requested = Signal()
+    file_overview_requested = Signal(str)
 
     def __init__(self):
         super().__init__()
         self.setStyleSheet(GRADIENT_BACKGROUND)
-        
+        self.repo_folder_path = None
+        self.selected_file_path = None
+
         # Add content
         title = QLabel("Repository Overview")
         title.setStyleSheet(f"background-color: transparent; font-size: 32px; font-weight: bold; color: {COLOR_ACCENT_BLUE};")
@@ -246,8 +250,15 @@ class BlueScreen(BaseScreen):
         self.overview_button.setStyleSheet(button_style)
         self.overview_button.setCursor(Qt.PointingHandCursor)
         self.overview_button.setEnabled(False)
-        self.overview_button.clicked.connect(lambda checked=False: self.repo_overview_requested.emit())
+        self.overview_button.clicked.connect(self._on_overview_button_clicked)
         controls_layout.addWidget(self.overview_button)
+
+        self.clear_selection_button = QPushButton("Clear selection")
+        self.clear_selection_button.setStyleSheet(button_style)
+        self.clear_selection_button.setCursor(Qt.PointingHandCursor)
+        self.clear_selection_button.setVisible(False)
+        self.clear_selection_button.clicked.connect(self.clear_file_selection)
+        controls_layout.addWidget(self.clear_selection_button)
 
         self.instructions_button = QPushButton("Usage instructions")
         self.instructions_button.setStyleSheet(button_style)
@@ -256,14 +267,49 @@ class BlueScreen(BaseScreen):
         self.instructions_button.setToolTip("Coming soon")
         controls_layout.addWidget(self.instructions_button)
 
-        self.tree_button = QPushButton("Interactive tree")
+        self.tree_button = QPushButton("Toggle file tree")
         self.tree_button.setStyleSheet(button_style)
         self.tree_button.setCursor(Qt.PointingHandCursor)
         self.tree_button.setEnabled(False)
-        self.tree_button.setToolTip("Coming soon")
+        self.tree_button.clicked.connect(self.toggle_file_tree)
+        self.tree_button.setToolTip("Show or hide the repository file tree")
         controls_layout.addWidget(self.tree_button)
 
         self.add_content(controls_container)
+
+        self.file_tree_label = QLabel("Repository file tree")
+        self.file_tree_label.setStyleSheet(f"background-color: transparent; font-size: 13px; font-weight: 600; color: {COLOR_TEXT_PRIMARY};")
+        self.file_tree_label.setAlignment(Qt.AlignLeft)
+        self.file_tree_label.setVisible(False)
+        self.add_content(self.file_tree_label)
+
+        self.selected_file_label = QLabel("No file selected.")
+        self.selected_file_label.setStyleSheet(f"background-color: transparent; font-size: 11px; color: {COLOR_TEXT_SECONDARY};")
+        self.selected_file_label.setAlignment(Qt.AlignLeft)
+        self.selected_file_label.setVisible(False)
+        self.add_content(self.selected_file_label)
+
+        self.file_tree = QTreeWidget()
+        self.file_tree.setHeaderHidden(True)
+        self.file_tree.setVisible(False)
+        self.file_tree.setStyleSheet(f"background-color: {COLOR_SURFACE}; color: {COLOR_TEXT_PRIMARY}; border: 1px solid {COLOR_SURFACE_LIGHT}; font-family: 'Courier New', monospace; font-size: 11px;")
+        self.file_tree.setSelectionMode(QTreeWidget.SingleSelection)
+        self.file_tree.itemSelectionChanged.connect(self._on_tree_selection_changed)
+
+        self.file_preview = QTextEdit()
+        self.file_preview.setReadOnly(True)
+        self.file_preview.setVisible(False)
+        self.file_preview.setMinimumHeight(280)
+        self.file_preview.setStyleSheet(f"background-color: {COLOR_SURFACE}; color: {COLOR_TEXT_PRIMARY}; border: 1px solid {COLOR_SURFACE_LIGHT}; font-family: 'Courier New', monospace; font-size: 11px;")
+        self.file_preview.setPlaceholderText("Select a file to preview its contents.")
+
+        self.file_tree_splitter = QSplitter(Qt.Horizontal)
+        self.file_tree_splitter.addWidget(self.file_tree)
+        self.file_tree_splitter.addWidget(self.file_preview)
+        self.file_tree_splitter.setStretchFactor(0, 1)
+        self.file_tree_splitter.setStretchFactor(1, 2)
+        self.file_tree_splitter.setVisible(False)
+        self.add_content(self.file_tree_splitter)
 
         self.overview_output = QTextEdit()
         self.overview_output.setReadOnly(True)
@@ -274,14 +320,141 @@ class BlueScreen(BaseScreen):
 
         self.add_stretch()
 
+    def _on_overview_button_clicked(self):
+        if self.selected_file_path:
+            self.file_overview_requested.emit(self.selected_file_path)
+        else:
+            self.repo_overview_requested.emit()
+
     def set_repo_ready_state(self, enabled: bool):
         self.overview_button.setEnabled(enabled)
+        self.tree_button.setEnabled(enabled)
         if not enabled:
+            self.clear_file_selection()
             self.overview_output.clear()
             self.overview_output.setPlaceholderText("Link a repository to enable overview generation.")
+            self.hide_file_tree()
 
     def set_overview_text(self, text: str):
         self.overview_output.setPlainText(text)
+
+    def show_file_tree(self, repo_folder_path: str):
+        self.repo_folder_path = repo_folder_path
+        self.selected_file_path = None
+        self.file_tree.clear()
+        self.selected_file_label.setText("No file selected.")
+        self.selected_file_label.setVisible(True)
+        self.clear_selection_button.setVisible(False)
+        self.file_preview.clear()
+        self.file_preview.setPlaceholderText("Select a file to preview its contents.")
+        self.file_tree.setVisible(True)
+        self.file_preview.setVisible(True)
+        self.file_tree_splitter.setVisible(True)
+        self.file_tree_label.setVisible(True)
+        self.tree_button.setText("Hide file tree")
+        self._update_overview_button_label()
+
+        root_item = self._build_tree_item(Path(repo_folder_path))
+        if root_item is not None:
+            self.file_tree.addTopLevelItem(root_item)
+            root_item.setExpanded(True)
+            for index in range(root_item.childCount()):
+                root_item.child(index).setExpanded(True)
+
+    def hide_file_tree(self):
+        self.file_tree.setVisible(False)
+        self.file_preview.setVisible(False)
+        self.file_tree_splitter.setVisible(False)
+        self.file_tree_label.setVisible(False)
+        self.selected_file_label.setVisible(False)
+        self.clear_selection_button.setVisible(False)
+        self.tree_button.setText("Show file tree")
+        self.repo_folder_path = None
+        self.selected_file_path = None
+
+    def toggle_file_tree(self):
+        if self.file_tree_splitter.isVisible():
+            self.file_tree_splitter.setVisible(False)
+            self.file_tree_label.setVisible(False)
+            self.selected_file_label.setVisible(False)
+            self.clear_selection_button.setVisible(False)
+            self.tree_button.setText("Show file tree")
+        else:
+            self.file_tree_splitter.setVisible(True)
+            self.file_tree_label.setVisible(True)
+            self.selected_file_label.setVisible(True)
+            if self.selected_file_path:
+                self.clear_selection_button.setVisible(True)
+            self.tree_button.setText("Hide file tree")
+
+    def _build_tree_item(self, path: Path, depth: int = 0, max_depth: int = 5):
+        if depth > max_depth:
+            return None
+        item = QTreeWidgetItem([path.name or str(path)])
+        item.setData(0, Qt.UserRole, str(path))
+        if path.is_dir():
+            try:
+                entries = sorted(path.iterdir(), key=lambda x: (not x.is_dir(), x.name.lower()))
+            except Exception:
+                return item
+            ignore_dirs = {'.git', '__pycache__', '.pytest_cache', 'node_modules', '.venv', 'venv', 'dist', 'build', 'migrations', 'tests', 'test'}
+            for child in entries:
+                if child.name in ignore_dirs or child.name.startswith('.'):
+                    continue
+                child_item = self._build_tree_item(child, depth + 1, max_depth)
+                if child_item is not None:
+                    item.addChild(child_item)
+        return item
+
+    def _on_tree_selection_changed(self):
+        selected_items = self.file_tree.selectedItems()
+        if not selected_items:
+            self.clear_file_selection()
+            return
+        item = selected_items[0]
+        file_path = item.data(0, Qt.UserRole)
+        if not file_path or not os.path.isfile(file_path):
+            self.clear_file_selection()
+            return
+        self.selected_file_path = file_path
+        self.selected_file_label.setText(f"Selected file: {os.path.relpath(file_path, self.repo_folder_path)}")
+        self.clear_selection_button.setVisible(True)
+        self._update_overview_button_label()
+        self._load_file_preview(file_path)
+
+    def _load_file_preview(self, file_path: str):
+        image_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.bmp'}
+        file_suffix = Path(file_path).suffix.lower()
+        try:
+            if file_suffix in image_extensions:
+                image_url = QUrl.fromLocalFile(file_path).toString()
+                self.file_preview.setHtml(
+                    f"<div style='background-color: {COLOR_SURFACE}; color: {COLOR_TEXT_PRIMARY};'>"
+                    f"<img src='{image_url}' style='max-width: 100%; max-height: 100%; display:block; margin:auto;' />"
+                    "</div>"
+                )
+            else:
+                with open(file_path, 'r', encoding='utf-8', errors='ignore') as fh:
+                    content = fh.read(14000)
+                self.file_preview.setPlainText(content or "[File is empty or could not be read.]")
+        except Exception as exc:
+            self.file_preview.setPlainText(f"Unable to preview file: {exc}")
+
+    def clear_file_selection(self):
+        self.selected_file_path = None
+        self.file_tree.clearSelection()
+        self.selected_file_label.setText("No file selected.")
+        self.clear_selection_button.setVisible(False)
+        self.file_preview.clear()
+        self.file_preview.setPlaceholderText("Select a file to preview its contents.")
+        self._update_overview_button_label()
+
+    def _update_overview_button_label(self):
+        if self.selected_file_path:
+            self.overview_button.setText("Generate file overview")
+        else:
+            self.overview_button.setText("Generate repo overview")
+
 
 
 class RedScreen(BaseScreen):

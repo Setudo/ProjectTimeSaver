@@ -1,7 +1,7 @@
 import sys
 import os
 import shutil
-from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QStackedWidget, QLabel
+from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QStackedWidget, QLabel, QSplitter, QSizePolicy
 from PySide6.QtCore import Qt, QThread, Signal, QObject, QTimer
 from PySide6.QtGui import QFontDatabase, QFont # Used to change fonts (as long as they are downloaded)
 from screens import BlueScreen, RedScreen, GreenScreen, GitHubScreen
@@ -193,6 +193,24 @@ class MainWindow(QMainWindow):
         self.logger.info("Application started")
         self.ensure_repos_folder()
 
+        screen = QApplication.primaryScreen()
+        if screen is not None:
+            available = screen.availableGeometry()
+            self.device_width = available.width()
+            self.device_height = available.height()
+        else:
+            self.device_width = 1920
+            self.device_height = 1080
+
+        self.window_initial_width = max(900, min(int(self.device_width * 0.9), 1400))
+        self.window_initial_height = max(680, min(int(self.device_height * 0.82), 1000))
+        self.setMinimumSize(max(760, int(self.device_width * 0.55)), max(600, int(self.device_height * 0.55)))
+        self.resize(self.window_initial_width, self.window_initial_height)
+
+        self.sidebar_expanded_width = max(260, int(self.device_width * 0.16))
+        self.sidebar_collapsed_width = max(56, int(self.device_width * 0.03))
+        self.sidebar_allowed_max = max(400, int(self.device_width * 0.22))
+
         # Track download worker/thread for cancellation
         self.download_thread = None
         self.download_worker = None
@@ -212,6 +230,7 @@ class MainWindow(QMainWindow):
         self.github_screen = GitHubScreen()
 
         self.blue_screen.repo_overview_requested.connect(self.on_generate_repo_overview)
+        self.blue_screen.file_overview_requested.connect(self.on_generate_file_overview)
 
         self.stacked.addWidget(self.blue_screen)
         self.stacked.addWidget(self.red_screen)
@@ -234,7 +253,9 @@ class MainWindow(QMainWindow):
         self.sidebar = QWidget()
         self.sidebar.setObjectName("sidebar")
         self.sidebar.setStyleSheet(f"#sidebar {{ background-color: {COLOR_SURFACE}; border-right: 1px solid {COLOR_SURFACE_LIGHT}; }}")
-        self.sidebar.setFixedWidth(260)
+        self.sidebar.setMinimumWidth(self.sidebar_collapsed_width)
+        self.sidebar.setMaximumWidth(self.sidebar_allowed_max)
+        self.sidebar.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
         sidebar_layout = QVBoxLayout(self.sidebar)
         sidebar_layout.setContentsMargins(10, 10, 10, 10)
         sidebar_layout.setSpacing(12)
@@ -350,18 +371,21 @@ class MainWindow(QMainWindow):
         sidebar_layout.addWidget(github_row)
 
         # Main container (sidebar + stacked content)
-        main_container = QWidget()
-        main_layout = QHBoxLayout(main_container)
-        main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.setSpacing(0)
-        main_layout.addWidget(self.sidebar)
-        main_layout.addWidget(self.stacked)
+        self.stacked.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.main_splitter = QSplitter(Qt.Horizontal)
+        self.main_splitter.addWidget(self.sidebar)
+        self.main_splitter.addWidget(self.stacked)
+        self.main_splitter.setStretchFactor(0, 0)
+        self.main_splitter.setStretchFactor(1, 1)
+        self.main_splitter.setCollapsible(0, False)
 
-        self.setCentralWidget(main_container)
+        self.setCentralWidget(self.main_splitter)
         self.stacked.setCurrentIndex(0)
         
         # Track current repo
         self.current_repo_url = None
+        self.sidebar_collapsed = False
+        self.set_sidebar_collapsed(True)
         
         # Check if repo is already linked
         self.check_and_update_repo_status()
@@ -431,6 +455,8 @@ class MainWindow(QMainWindow):
         self.green_screen.set_repo_info(self.current_repo_url)
         self.github_screen.set_repo_info(self.current_repo_url)
         self.blue_screen.set_repo_ready_state(bool(repo_folder and os.path.isdir(repo_folder)))
+        if repo_folder and os.path.isdir(repo_folder):
+            self.blue_screen.show_file_tree(repo_folder)
 
     def _get_repo_folder(self):
         if not self.current_repo_url:
@@ -481,13 +507,14 @@ class MainWindow(QMainWindow):
         self.overview_thread = QThread()
         self.overview_worker.moveToThread(self.overview_thread)
 
-        self.overview_worker.finished.connect(self._handle_overview_result, Qt.QueuedConnection)
+        self.overview_worker.finished.connect(self._apply_overview_result, Qt.QueuedConnection)
         self.overview_worker.finished.connect(self.overview_worker.deleteLater, Qt.QueuedConnection)
         self.overview_thread.finished.connect(self.overview_thread.deleteLater)
         self.overview_thread.started.connect(self.overview_worker.run)
         self.overview_thread.start()
 
-    def _handle_overview_result(self, text: str, success: bool):
+    def _apply_overview_result(self, text, success):
+        """Slot always called on the main thread via QueuedConnection."""
         try:
             self.blue_screen.set_overview_text(text)
         except Exception as exc:
@@ -499,6 +526,57 @@ class MainWindow(QMainWindow):
                 self.logger.info("Repository overview generation completed successfully")
             else:
                 self.logger.warning("Repository overview generation failed")
+
+    def on_generate_file_overview(self, file_path):
+        if not file_path or not os.path.isfile(file_path):
+            self.blue_screen.set_overview_text("Selected file not found. Please select a valid file.")
+            self.logger.warning("File overview requested but selected file was missing")
+            return
+
+        self.logger.info(f"User requested file overview generation for: {file_path}")
+        self.blue_screen.set_overview_text("Generating file overview. This may take a moment...")
+
+        class FileOverviewWorker(QObject):
+            finished = Signal(str, bool)
+
+            def __init__(self, file_path, logger_ref):
+                super().__init__()
+                self.file_path = file_path
+                self.logger = logger_ref
+
+            def run(self):
+                try:
+                    self.logger.info(f"File overview worker started for file: {self.file_path}")
+                    summary = generate_file_overview(self.file_path)
+                    self.logger.info("File overview worker completed generation")
+                    self.finished.emit(summary, True)
+                except Exception as exc:
+                    self.logger.error(f"File overview generation failed: {str(exc)}")
+                    self.finished.emit(f"File overview generation failed: {str(exc)}", False)
+
+        self.file_overview_worker = FileOverviewWorker(file_path, self.logger)
+        self.file_overview_thread = QThread()
+        self.file_overview_worker.moveToThread(self.file_overview_thread)
+
+        self.file_overview_worker.finished.connect(self._handle_file_overview_result, Qt.QueuedConnection)
+        self.file_overview_worker.finished.connect(self.file_overview_worker.deleteLater, Qt.QueuedConnection)
+        self.file_overview_thread.finished.connect(self.file_overview_thread.deleteLater)
+        self.file_overview_thread.started.connect(self.file_overview_worker.run)
+        self.file_overview_thread.start()
+
+    def _handle_file_overview_result(self, text, success):
+        """Slot always called on the main thread via QueuedConnection."""
+        try:
+            self.blue_screen.set_overview_text(text)
+        except Exception as exc:
+            self.logger.error(f"Failed to update file overview text in main thread: {exc}")
+        finally:
+            if hasattr(self, 'file_overview_thread') and self.file_overview_thread:
+                self.file_overview_thread.quit()
+            if success:
+                self.logger.info("File overview generation completed successfully")
+            else:
+                self.logger.warning("File overview generation failed")
 
     def on_repo_linked(self, repo_url):
         """Handle repository linking by downloading the repo in a background thread."""
@@ -685,15 +763,14 @@ class MainWindow(QMainWindow):
             print(error_msg)
             self.logger.error(error_msg)
 
-    def toggle_sidebar(self):
-        """Collapse or expand the sidebar."""
+    def set_sidebar_collapsed(self, collapsed: bool):
+        """Set the sidebar collapsed or expanded state."""
         try:
-            collapsed_width = 56
-            expanded_width = 260
-            current = self.sidebar.width()
-            if current > collapsed_width:
+            self.sidebar_collapsed = collapsed
+            collapsed_width = self.sidebar_collapsed_width
+            expanded_width = self.sidebar_expanded_width
+            if collapsed:
                 self.sidebar.setFixedWidth(collapsed_width)
-                # hide everything except the sidebar toggle button
                 try:
                     for b in getattr(self, 'sidebar_buttons', []):
                         b.setVisible(False)
@@ -702,13 +779,15 @@ class MainWindow(QMainWindow):
                 try:
                     if hasattr(self, 'sidebar_github_button'):
                         self.sidebar_github_button.setVisible(False)
+                        self.sidebar_github_button.setMaximumWidth(48)
+                        self.sidebar_github_button.setText("Repo" if self.current_repo_url else "Link")
+                        self.sidebar_github_button.setMinimumWidth(48)
                     if hasattr(self, 'sidebar_unlink_button'):
                         self.sidebar_unlink_button.setVisible(False)
                 except Exception:
                     pass
             else:
                 self.sidebar.setFixedWidth(expanded_width)
-                # show the sidebar contents again
                 try:
                     for b in getattr(self, 'sidebar_buttons', []):
                         b.setVisible(True)
@@ -717,16 +796,27 @@ class MainWindow(QMainWindow):
                 try:
                     if hasattr(self, 'sidebar_github_button'):
                         self.sidebar_github_button.setVisible(True)
+                        self.sidebar_github_button.setMaximumWidth(16777215)
+                        self.sidebar_github_button.setMinimumWidth(0)
                     if hasattr(self, 'sidebar_unlink_button'):
-                        self.sidebar_unlink_button.setVisible(True)
+                        self.sidebar_unlink_button.setVisible(self.current_repo_url is not None)
                 except Exception:
                     pass
+                if self.current_repo_url:
+                    self.update_sidebar_repo_state(True, self.current_repo_url)
+                else:
+                    self.update_sidebar_repo_state(False)
         except Exception as e:
-            self.logger.error(f"Error toggling sidebar: {str(e)}")
+            self.logger.error(f"Error setting sidebar collapsed state: {str(e)}")
+
+    def toggle_sidebar(self):
+        """Collapse or expand the sidebar."""
+        self.set_sidebar_collapsed(not getattr(self, 'sidebar_collapsed', False))
 
     def update_sidebar_repo_state(self, is_linked, repo_url=None):
         """Update the sidebar GitHub button and unlink button state."""
         try:
+            collapsed = getattr(self, 'sidebar_collapsed', False)
             if is_linked and repo_url:
                 repo_name = repo_url.rstrip('/').split('/')[-1].replace('.git', '')
                 text = f"✓ {repo_name}"
@@ -752,9 +842,12 @@ class MainWindow(QMainWindow):
                         color: #0f1419;
                     }}
                 """)
-                self.sidebar_github_button.setText(text)
+                self.sidebar_github_button.setText("Repo" if collapsed else text)
+                self.sidebar_github_button.setMaximumWidth(48 if collapsed else 16777215)
+                self.sidebar_github_button.setVisible(True)
                 self.sidebar_unlink_button.setEnabled(True)
             else:
+                self.sidebar_github_button.setVisible(True)
                 # default unlinked style
                 self.sidebar_github_button.setStyleSheet(f"""
                     QPushButton {{
@@ -777,8 +870,13 @@ class MainWindow(QMainWindow):
                         color: #0f1419;
                     }}
                 """)
-                self.sidebar_github_button.setText("Link GitHub Repository")
+                self.sidebar_github_button.setText("Link" if collapsed else "Link GitHub Repository")
+                self.sidebar_github_button.setMaximumWidth(48 if collapsed else 16777215)
                 self.sidebar_unlink_button.setEnabled(False)
+            if collapsed:
+                self.sidebar_unlink_button.setVisible(False)
+            else:
+                self.sidebar_unlink_button.setVisible(is_linked)
         except Exception as e:
             try:
                 self.logger.error(f"Error updating sidebar repo state: {str(e)}")
@@ -803,6 +901,5 @@ if __name__ == "__main__":
     app.setFont(QFont("Inter", 10))
 
     window = MainWindow()
-    window.toggle_sidebar()  # Start with sidebar collapsed
     window.show()
     sys.exit(app.exec())

@@ -4,20 +4,26 @@ import re
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from config import MAX_TOKENS, TEMPERATURE # Imports config values for AI generation (saved in config.toml)
+from config import MAX_TOKENS, TEMPERATURE  # Imports config values for AI generation (saved in config.toml)
 
 try:
     llama_cpp = importlib.import_module("llama_cpp")
     Llama = llama_cpp.Llama
     _LLAMA_CPP_AVAILABLE = True
 except Exception:
-    print("NO AI AVAILABLE")
+    print("\nNO AI AVAILABLE\n")
     Llama = None
     _LLAMA_CPP_AVAILABLE = False
 
 MODEL_PATH_ENV = "LLAMA_CPP_MODEL_PATH"
 README_CANDIDATES = ["README.md", "README.rst", "README.txt", "README"]
 COMMON_TEXT_EXTENSIONS = {".md", ".rst", ".txt", ".py", ".js", ".json", ".yaml", ".yml", ".ini", ".cfg", ".toml"}
+ENTRY_POINT_NAMES = {
+    "main.py", "app.py", "cli.py", "run.py", "server.py",
+    "index.js", "index.ts", "main.go", "main.rs", "main.c", "main.cpp",
+}
+DEPENDENCY_FILES = ["requirements.txt", "pyproject.toml", "package.json", "go.mod", "Cargo.toml"]
+SKIP_DIRS = {"test", "tests", "migrations", "node_modules", ".git", "dist", "build", "__pycache__", ".venv", "venv"}
 
 
 def _find_local_model_path() -> Optional[str]:
@@ -50,31 +56,61 @@ def _collect_repo_text(repo_folder_path: str) -> str:
     repo_folder = Path(repo_folder_path)
     snippets: List[str] = []
 
+    # 1. README — high-level intent
     for readme_name in README_CANDIDATES:
         readme_path = repo_folder / readme_name
         if readme_path.exists():
-            content = _read_file_snippet(readme_path, max_chars=12000)
+            content = _read_file_snippet(readme_path, max_chars=4000)
             if content:
                 snippets.append(f"README ({readme_name}):\n{content}")
-                break
-
-    top_files = []
-    for entry in sorted(repo_folder.iterdir()):
-        if entry.is_file() and entry.suffix.lower() in COMMON_TEXT_EXTENSIONS:
-            top_files.append(entry)
-        if len(top_files) >= 4:
             break
 
-    if top_files:
-        for file_path in top_files[:3]:
-            snippet = _read_file_snippet(file_path, max_chars=3000)
+    # 2. Dependency manifest — reveals frameworks and libraries in use
+    for dep_file in DEPENDENCY_FILES:
+        dep_path = repo_folder / dep_file
+        if dep_path.exists():
+            snippet = _read_file_snippet(dep_path, max_chars=1000)
             if snippet:
-                snippets.append(f"File: {file_path.name}\n{snippet}")
+                snippets.append(f"Dependencies ({dep_file}):\n{snippet}")
+            break
 
-    if not snippets:
-        snippets.append("No README or common text files could be read from the repository.")
+    # 3. Entry points anywhere in the repo — highest signal for understanding flow
+    entry_point_snippets: List[str] = []
+    for root, dirs, files in os.walk(repo_folder_path):
+        dirs[:] = [d for d in dirs if d not in SKIP_DIRS]
+        for file_name in files:
+            if file_name.lower() in ENTRY_POINT_NAMES:
+                file_path = Path(root) / file_name
+                snippet = _read_file_snippet(file_path, max_chars=2000)
+                if snippet:
+                    rel = file_path.relative_to(repo_folder)
+                    entry_point_snippets.append(f"Entry point ({rel}):\n{snippet}")
+            if len(entry_point_snippets) >= 3:
+                break
+        if len(entry_point_snippets) >= 3:
+            break
+    snippets.extend(entry_point_snippets)
 
-    return "\n\n".join(snippets)
+    # 4. Remaining source files, skipping tests/build artifacts
+    source_files: List[Path] = []
+    for root, dirs, files in os.walk(repo_folder_path):
+        dirs[:] = [d for d in dirs if d not in SKIP_DIRS]
+        for file_name in files:
+            p = Path(root) / file_name
+            if p.suffix.lower() in COMMON_TEXT_EXTENSIONS:
+                # Skip files already added as entry points
+                if file_name.lower() not in ENTRY_POINT_NAMES:
+                    source_files.append(p)
+
+    for file_path in source_files:
+        if len(snippets) >= 8:
+            break
+        snippet = _read_file_snippet(file_path, max_chars=1500)
+        if snippet:
+            rel = file_path.relative_to(repo_folder)
+            snippets.append(f"File ({rel}):\n{snippet}")
+
+    return "\n\n---\n\n".join(snippets) if snippets else "No readable files found."
 
 
 def _compute_repo_metadata(repo_folder_path: str) -> Dict[str, str]:
@@ -122,22 +158,30 @@ def _compute_repo_metadata(repo_folder_path: str) -> Dict[str, str]:
 def _build_prompt(repo_folder_path: str, repo_url: Optional[str] = None) -> str:
     repo_text = _collect_repo_text(repo_folder_path)
     metadata = _compute_repo_metadata(repo_folder_path)
-    prompt_parts = [
-        "You are a helpful assistant that summarizes code repositories.",
-        "Read the repository description and top file contents below, then provide a detailed overview of the purpose of the repo.",
-        f"Repository path: {repo_folder_path}",
-    ]
-    if repo_url:
-        prompt_parts.append(f"Repository URL: {repo_url}")
 
-    prompt_parts.extend([
+    return "\n".join([
+        "You are a senior developer writing documentation for other developers.",
+        "Analyse the repository files below and answer each of the following sections:",
+        "",
+        "1. **Purpose** - What problem does this repo solve in one or two sentences?",
+        "2. **How it works** - Key components, architecture, or main flow.",
+        "3. **Inputs / Outputs** - What does it take in and produce?",
+        "4. **Key dependencies** - Notable libraries or frameworks used.",
+        "5. **How to use it** - How would a developer run or integrate this?",
+        "",
+        f"Repository path: {repo_folder_path}",
+        f"Repository URL: {repo_url or 'not provided'}",
         f"Top-level folders: {metadata['top_level_dirs']}",
         f"Main file types: {metadata['language_summary']}",
-        "Repository source content:\n",
+        "",
+        "Repository files:",
+        "---",
         repo_text,
+        "---",
+        "",
+        "Write the structured overview now. Be specific — reference actual file names, "
+        "function names, and classes where relevant.",
     ])
-    prompt_parts.append("\nWrite a detailed summary of what this repository is for and how a developer might use it.")
-    return "\n".join(prompt_parts)
 
 
 def _llama_available() -> bool:
@@ -154,7 +198,7 @@ def _generate_with_llama(prompt: str) -> Optional[str]:
 
     try:
         llama = Llama(model_path=model_path)
-        response = llama.create(prompt=prompt, max_tokens=MAX_TOKENS, temperature=TEMPERATURE) # Sets prompt values to config
+        response = llama.create(prompt=prompt, max_tokens=MAX_TOKENS, temperature=TEMPERATURE)  # Sets prompt values to config
         text = response.get("choices", [{}])[0].get("text")
         return text.strip() if isinstance(text, str) else None
     except Exception:
@@ -175,12 +219,34 @@ def _heuristic_repo_summary(repo_folder_path: str, repo_url: Optional[str] = Non
     lines = [line.strip() for line in readme_text.splitlines() if line.strip()]
     readme_summary = lines[0] if lines else "No README summary available."
 
+    # Detect any dependency file present for the heuristic summary
+    detected_dep_file = None
+    for dep_file in DEPENDENCY_FILES:
+        if (repo_folder / dep_file).exists():
+            detected_dep_file = dep_file
+            break
+
+    # Detect any entry points present for the heuristic summary
+    detected_entry_points: List[str] = []
+    for root, dirs, files in os.walk(repo_folder_path):
+        dirs[:] = [d for d in dirs if d not in SKIP_DIRS]
+        for file_name in files:
+            if file_name.lower() in ENTRY_POINT_NAMES:
+                rel = Path(root) / file_name
+                detected_entry_points.append(str(Path(rel).relative_to(repo_folder)))
+        if len(detected_entry_points) >= 3:
+            break
+
+    entry_point_line = ", ".join(detected_entry_points) if detected_entry_points else "none detected"
+
     return (
         f"Repository overview:\n"
         f"- Repository path: {repo_folder_path}\n"
         f"- GitHub URL: {repo_url or 'not provided'}\n"
         f"- Top-level folders: {metadata['top_level_dirs']}\n"
         f"- Main file types: {metadata['language_summary']}\n"
+        f"- Dependency manifest: {detected_dep_file or 'none detected'}\n"
+        f"- Entry points: {entry_point_line}\n"
         f"- README summary: {readme_summary}\n\n"
         f"This repository appears to be a project focused on {metadata['language_summary'].lower()} development. "
         f"The README text suggests its purpose is: {readme_summary}"
@@ -210,12 +276,26 @@ def generate_file_overview(file_path: str) -> str:
         return "Unable to read file contents."
 
     if _llama_available():
-        prompt = (
-            "You are a helpful assistant summarizing a source file.\n"
-            f"File name: {path.name}\n"
-            f"File contents:\n{content}\n\n"
-            "Provide a detailed overview of this file's purpose and main responsibilities."
-        )
+        prompt = "\n".join([
+            "You are a senior developer writing documentation for other developers.",
+            "Analyse the source file below and answer each of the following sections:",
+            "",
+            "1. **Purpose** - What is this file's role in one or two sentences?",
+            "2. **Key functions / classes** - What are the main callables and what do they do?",
+            "3. **Inputs / Outputs** - What does it accept and return?",
+            "4. **Dependencies** - What does it import or rely on?",
+            "5. **Usage notes** - Anything a developer should know before using or modifying this file?",
+            "",
+            f"File name: {path.name}",
+            "",
+            "File contents:",
+            "---",
+            content,
+            "---",
+            "",
+            "Write the structured overview now. Be specific — reference actual function names, "
+            "classes, and variable names where relevant.",
+        ])
         result = _generate_with_llama(prompt)
         if result:
             return result
@@ -232,4 +312,3 @@ def generate_file_overview(file_path: str) -> str:
         f"- Size: {path.stat().st_size} bytes\n"
         "This file appears to contain source or documentation content that should be reviewed manually for exact behavior."
     )
-
