@@ -795,7 +795,7 @@ class MainWindow(QMainWindow):
                     pass
                 try:
                     if hasattr(self, 'sidebar_github_button'):
-                        self.sidebar_github_button.setVisible(True)
+                        self.sidebar_github_button.setVisible(not collapsed)
                         self.sidebar_github_button.setMaximumWidth(16777215)
                         self.sidebar_github_button.setMinimumWidth(0)
                     if hasattr(self, 'sidebar_unlink_button'):
@@ -842,12 +842,12 @@ class MainWindow(QMainWindow):
                         color: #0f1419;
                     }}
                 """)
-                self.sidebar_github_button.setText("Repo" if collapsed else text)
+                self.sidebar_github_button.setText("GH" if collapsed else text)
                 self.sidebar_github_button.setMaximumWidth(48 if collapsed else 16777215)
                 self.sidebar_github_button.setVisible(True)
                 self.sidebar_unlink_button.setEnabled(True)
             else:
-                self.sidebar_github_button.setVisible(True)
+                self.sidebar_github_button.setVisible(not collapsed)
                 # default unlinked style
                 self.sidebar_github_button.setStyleSheet(f"""
                     QPushButton {{

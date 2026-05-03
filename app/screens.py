@@ -357,9 +357,13 @@ class BlueScreen(BaseScreen):
         root_item = self._build_tree_item(Path(repo_folder_path))
         if root_item is not None:
             self.file_tree.addTopLevelItem(root_item)
-            root_item.setExpanded(True)
-            for index in range(root_item.childCount()):
-                root_item.child(index).setExpanded(True)
+
+        # Start with the tree hidden
+        self.file_tree_splitter.setVisible(False)
+        self.file_tree_label.setVisible(False)
+        self.selected_file_label.setVisible(False)
+        self.tree_button.setText("Show file tree")
+
 
     def hide_file_tree(self):
         self.file_tree.setVisible(False)

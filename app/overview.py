@@ -4,6 +4,7 @@ import re
 from pathlib import Path
 from typing import Dict, List, Optional
 
+
 from config import MAX_TOKENS, TEMPERATURE  # Imports config values for AI generation (saved in config.toml)
 
 try:
@@ -27,15 +28,26 @@ SKIP_DIRS = {"test", "tests", "migrations", "node_modules", ".git", "dist", "bui
 
 
 def _find_local_model_path() -> Optional[str]:
+    # 1. Environment variable (best)
     env_path = os.environ.get(MODEL_PATH_ENV)
     if env_path:
         env_path = os.path.expanduser(env_path)
         if os.path.exists(env_path):
             return env_path
 
-    top_paths = [Path(__file__).resolve().parent, Path.cwd()]
-    for base in top_paths:
-        for pattern in ["*.gguf", "*.bin", "*.pt", "*.pth"]:
+    # 2. Search common folders
+    search_dirs = [
+        Path.cwd(),
+        Path(__file__).parent,
+        Path(__file__).parent/"models",
+        Path.home() / "models",
+        Path.home() / ".models",
+    ]
+
+    for base in search_dirs:
+        if not base.exists():
+            continue
+        for pattern in ["*.gguf", "*.bin"]:
             matches = list(base.glob(pattern))
             if matches:
                 return str(matches[0])
@@ -186,6 +198,7 @@ def _build_prompt(repo_folder_path: str, repo_url: Optional[str] = None) -> str:
 
 def _llama_available() -> bool:
     if not _LLAMA_CPP_AVAILABLE:
+        print("LLAMA.CPP LIBRARY NOT AVAILABLE")
         return False
     model_path = _find_local_model_path()
     return bool(model_path)
@@ -197,11 +210,15 @@ def _generate_with_llama(prompt: str) -> Optional[str]:
         return None
 
     try:
-        llama = Llama(model_path=model_path)
-        response = llama.create(prompt=prompt, max_tokens=MAX_TOKENS, temperature=TEMPERATURE)  # Sets prompt values to config
+        llama = Llama(model_path=model_path,
+                      n_ctx=4096,
+                      verbose=False,
+        )
+        response = llama.create_completion(prompt=prompt, max_tokens=MAX_TOKENS, temperature=TEMPERATURE)  # Sets prompt values to config
         text = response.get("choices", [{}])[0].get("text")
         return text.strip() if isinstance(text, str) else None
-    except Exception:
+    except Exception as e:
+        print(f"Error during Llama generation: {e}")
         return None
 
 
@@ -280,7 +297,7 @@ def generate_file_overview(file_path: str) -> str:
             "You are a senior developer writing documentation for other developers.",
             "Analyse the source file below and answer each of the following sections:",
             "",
-            "1. **Purpose** - What is this file's role in one or two sentences?",
+            "1. **Purpose** - What is this file's role in one or two sentences? Take note of the file extension for clues. ",
             "2. **Key functions / classes** - What are the main callables and what do they do?",
             "3. **Inputs / Outputs** - What does it accept and return?",
             "4. **Dependencies** - What does it import or rely on?",
@@ -299,6 +316,10 @@ def generate_file_overview(file_path: str) -> str:
         result = _generate_with_llama(prompt)
         if result:
             return result
+        else:
+            print("AI GENERATION FAILED")
+    else:
+        print("LLAMA.CPP NOT AVAILABLE - FALLING BACK TO HEURISTIC OVERVIEW")
 
     first_lines = [line.strip() for line in content.splitlines() if line.strip()]
     if first_lines:
