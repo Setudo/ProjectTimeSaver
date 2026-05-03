@@ -3,6 +3,7 @@ from PySide6.QtCore import Qt, Signal, QUrl
 from PySide6.QtGui import QFont
 from pathlib import Path
 import os
+from explain import collect_code_file_paths
 
 # Modern dark theme with programmer-focused design
 GRADIENT_BACKGROUND = """
@@ -462,23 +463,236 @@ class BlueScreen(BaseScreen):
 
 
 class RedScreen(BaseScreen):
+    refresh_files_requested = Signal()
+    code_explanation_requested = Signal(str)
+    annotate_file_requested = Signal(str)
+    save_annotated_file_requested = Signal(str, str)
+
     def __init__(self):
         super().__init__()
         self.setStyleSheet(GRADIENT_BACKGROUND)
-        
+        self.repo_folder_path = None
+        self.selected_file_path = None
+        self.annotated_content = ""
+
         # Add content
-        title = QLabel("Fix #2")
+        title = QLabel("Code Annoation")
         title.setStyleSheet(f"background-color: transparent; font-size: 32px; font-weight: bold; color: {COLOR_ACCENT_RED};")
         title.setFont(QFont("Courier New", 28, QFont.Bold))
         title.setAlignment(Qt.AlignCenter)
         self.add_content(title)
         
-        description = QLabel("This is the red screen for Fix #2\nYour implementation goes here")
+        description = QLabel("Browse repository code files, generate explanations, annotate functions, and save annotated versions.")
         description.setStyleSheet(f"background-color: transparent; font-size: 14px; color: {COLOR_TEXT_SECONDARY}; text-align: center;")
         description.setAlignment(Qt.AlignCenter)
         self.add_content(description)
-        
+
+        control_row = QWidget()
+        control_row.setStyleSheet("background-color: transparent;")
+        control_layout = QHBoxLayout(control_row)
+        control_layout.setSpacing(12)
+        control_layout.setContentsMargins(0, 0, 0, 0)
+
+        button_style = f"""
+            QPushButton {{
+                background-color: {COLOR_SURFACE};
+                color: {COLOR_TEXT_PRIMARY};
+                border: 1px solid {COLOR_SURFACE_LIGHT};
+                border-radius: 0px;
+                padding: 10px 16px;
+                font-size: 12px;
+                font-weight: 600;
+                font-family: 'Courier New', monospace;
+            }}
+            QPushButton:hover {{
+                background-color: {COLOR_SURFACE_LIGHT};
+                border: 1px solid {COLOR_ACCENT_BLUE};
+                color: {COLOR_ACCENT_BLUE};
+            }}
+            QPushButton:pressed {{
+                background-color: {COLOR_ACCENT_RED};
+                color: #0f1419;
+            }}
+        """
+
+        self.refresh_button = QPushButton("Refresh file list")
+        self.refresh_button.setStyleSheet(button_style)
+        self.refresh_button.setCursor(Qt.PointingHandCursor)
+        self.refresh_button.clicked.connect(self.refresh_files_requested.emit)
+        control_layout.addWidget(self.refresh_button)
+
+        self.explain_button = QPushButton("Generate explanation")
+        self.explain_button.setStyleSheet(button_style)
+        self.explain_button.setCursor(Qt.PointingHandCursor)
+        self.explain_button.setEnabled(False)
+        self.explain_button.clicked.connect(self._on_explain_clicked)
+        control_layout.addWidget(self.explain_button)
+
+        self.annotate_button = QPushButton("Annotate with comments")
+        self.annotate_button.setStyleSheet(button_style)
+        self.annotate_button.setCursor(Qt.PointingHandCursor)
+        self.annotate_button.setEnabled(False)
+        self.annotate_button.clicked.connect(self._on_annotate_clicked)
+        control_layout.addWidget(self.annotate_button)
+
+        self.save_button = QPushButton("Save annotated file")
+        self.save_button.setStyleSheet(button_style)
+        self.save_button.setCursor(Qt.PointingHandCursor)
+        self.save_button.setEnabled(False)
+        self.save_button.clicked.connect(self._on_save_clicked)
+        control_layout.addWidget(self.save_button)
+
+        self.add_content(control_row)
+
+        self.status_label = QLabel("Link a repository to load code files.")
+        self.status_label.setStyleSheet(f"background-color: transparent; font-size: 12px; color: {COLOR_TEXT_SECONDARY};")
+        self.status_label.setAlignment(Qt.AlignLeft)
+        self.add_content(self.status_label)
+
+        self.file_tree_label = QLabel("Code files in repository")
+        self.file_tree_label.setStyleSheet(f"background-color: transparent; font-size: 13px; font-weight: 600; color: {COLOR_TEXT_PRIMARY};")
+        self.file_tree_label.setAlignment(Qt.AlignLeft)
+        self.file_tree_label.setVisible(False)
+        self.add_content(self.file_tree_label)
+
+        self.file_tree = QTreeWidget()
+        self.file_tree.setHeaderHidden(True)
+        self.file_tree.setStyleSheet(f"background-color: {COLOR_SURFACE}; color: {COLOR_TEXT_PRIMARY}; border: 1px solid {COLOR_SURFACE_LIGHT}; font-family: 'Courier New', monospace; font-size: 11px;")
+        self.file_tree.setSelectionMode(QTreeWidget.SingleSelection)
+        self.file_tree.itemSelectionChanged.connect(self._on_file_selection_changed)
+
+        self.file_preview = QTextEdit()
+        self.file_preview.setReadOnly(True)
+        self.file_preview.setStyleSheet(f"background-color: {COLOR_SURFACE}; color: {COLOR_TEXT_PRIMARY}; border: 1px solid {COLOR_SURFACE_LIGHT}; font-family: 'Courier New', monospace; font-size: 11px;")
+        self.file_preview.setMinimumHeight(260)
+        self.file_preview.setPlaceholderText("Select a file to preview its contents.")
+
+        self.tree_splitter = QSplitter(Qt.Horizontal)
+        self.tree_splitter.addWidget(self.file_tree)
+        self.tree_splitter.addWidget(self.file_preview)
+        self.tree_splitter.setStretchFactor(0, 1)
+        self.tree_splitter.setStretchFactor(1, 2)
+        self.tree_splitter.setVisible(False)
+        self.add_content(self.tree_splitter)
+
+        self.explanation_output = QTextEdit()
+        self.explanation_output.setReadOnly(True)
+        self.explanation_output.setMinimumHeight(260)
+        self.explanation_output.setStyleSheet(f"background-color: {COLOR_SURFACE}; color: {COLOR_TEXT_PRIMARY}; border: 1px solid {COLOR_SURFACE_LIGHT}; font-family: 'Courier New', monospace; font-size: 12px;")
+        self.explanation_output.setPlaceholderText("Explanation and annotated content will appear here.")
+        self.explanation_output.setVisible(False)
+        self.add_content(self.explanation_output)
+
         self.add_stretch()
+
+    def set_repo_ready_state(self, enabled: bool):
+        self.refresh_button.setEnabled(enabled)
+        self.explain_button.setEnabled(enabled and bool(self.selected_file_path))
+        self.annotate_button.setEnabled(enabled and bool(self.selected_file_path))
+        self.save_button.setEnabled(enabled and bool(self.annotated_content))
+        if not enabled:
+            self.clear_selection()
+            self.file_tree.clear()
+            self.file_tree.setVisible(False)
+            self.file_tree_label.setVisible(False)
+            self.tree_splitter.setVisible(False)
+            self.explanation_output.clear()
+            self.explanation_output.setVisible(False)
+            self.status_label.setText("Link a repository to load code files.")
+
+    def show_code_files(self, repo_folder_path: str):
+        self.repo_folder_path = repo_folder_path
+        self.file_tree.clear()
+        self.selected_file_path = None
+        self.annotated_content = ""
+        self.set_save_enabled(False)
+        self.file_tree_label.setVisible(True)
+        self.status_label.setText("Loaded code files. Select a file to preview and explain.")
+        self.file_tree.setVisible(True)
+        self.tree_splitter.setVisible(True)
+        self.explanation_output.setVisible(True)
+
+        code_files = collect_code_file_paths(repo_folder_path)
+        for rel_path in code_files:
+            item = QTreeWidgetItem([rel_path])
+            item.setData(0, Qt.UserRole, os.path.join(repo_folder_path, rel_path))
+            self.file_tree.addTopLevelItem(item)
+
+        self.set_repo_ready_state(bool(code_files))
+
+    def _on_file_selection_changed(self):
+        selected_items = self.file_tree.selectedItems()
+        if not selected_items:
+            self.clear_selection()
+            return
+        item = selected_items[0]
+        file_path = item.data(0, Qt.UserRole)
+        if not file_path or not os.path.isfile(file_path):
+            self.clear_selection()
+            return
+        self.selected_file_path = file_path
+        self.status_label.setText(f"Selected file: {os.path.relpath(file_path, self.repo_folder_path)}")
+        self._load_file_preview(file_path)
+        self.explain_button.setEnabled(True)
+        self.annotate_button.setEnabled(True)
+        self.save_button.setEnabled(bool(self.annotated_content))
+
+    def _load_file_preview(self, file_path: str):
+        image_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.bmp'}
+        file_suffix = Path(file_path).suffix.lower()
+        try:
+            if file_suffix in image_extensions:
+                image_url = QUrl.fromLocalFile(file_path).toString()
+                self.file_preview.setHtml(
+                    f"<div style='background-color: {COLOR_SURFACE}; color: {COLOR_TEXT_PRIMARY};'>"
+                    f"<img src='{image_url}' style='max-width: 100%; max-height: 100%; display:block; margin:auto;' />"
+                    "</div>"
+                )
+            else:
+                with open(file_path, 'r', encoding='utf-8', errors='ignore') as fh:
+                    content = fh.read(14000)
+                self.file_preview.setPlainText(content or "[File is empty or could not be read.]")
+        except Exception as exc:
+            self.file_preview.setPlainText(f"Unable to preview file: {exc}")
+
+    def _on_explain_clicked(self):
+        if self.selected_file_path:
+            self.code_explanation_requested.emit(self.selected_file_path)
+
+    def _on_annotate_clicked(self):
+        if self.selected_file_path:
+            self.annotate_file_requested.emit(self.selected_file_path)
+
+    def _on_save_clicked(self):
+        if self.selected_file_path and self.annotated_content:
+            self.save_annotated_file_requested.emit(self.selected_file_path, self.annotated_content)
+
+    def set_status_text(self, text: str):
+        self.status_label.setText(text)
+
+    def set_explanation_text(self, text: str):
+        self.explanation_output.setVisible(True)
+        self.explanation_output.setPlainText(text)
+
+    def set_annotated_text(self, text: str):
+        self.annotated_content = text
+        self.set_explanation_text(text)
+        self.set_save_enabled(True)
+
+    def set_save_enabled(self, enabled: bool):
+        self.save_button.setEnabled(enabled and bool(self.selected_file_path))
+
+    def clear_selection(self):
+        self.selected_file_path = None
+        self.file_tree.clearSelection()
+        self.status_label.setText("Select a code file to generate an explanation.")
+        self.file_preview.clear()
+        self.file_preview.setPlaceholderText("Select a file to preview its contents.")
+        self.explain_button.setEnabled(False)
+        self.annotate_button.setEnabled(False)
+        self.save_button.setEnabled(False)
+        self.annotated_content = ""
+        self.explanation_output.clear()
 
 
 class GreenScreen(BaseScreen):

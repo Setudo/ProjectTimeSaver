@@ -1,22 +1,9 @@
-import importlib
 import os
 import re
 from pathlib import Path
 from typing import Dict, List, Optional
 
-
-from config import MAX_TOKENS, TEMPERATURE  # Imports config values for AI generation (saved in config.toml)
-
-try:
-    llama_cpp = importlib.import_module("llama_cpp")
-    Llama = llama_cpp.Llama
-    _LLAMA_CPP_AVAILABLE = True
-except Exception:
-    print("\nNO AI AVAILABLE\n")
-    Llama = None
-    _LLAMA_CPP_AVAILABLE = False
-
-MODEL_PATH_ENV = "LLAMA_CPP_MODEL_PATH"
+from aihandler import generate_with_llama, llama_available, read_text_safe
 README_CANDIDATES = ["README.md", "README.rst", "README.txt", "README"]
 COMMON_TEXT_EXTENSIONS = {".md", ".rst", ".txt", ".py", ".js", ".json", ".yaml", ".yml", ".ini", ".cfg", ".toml"}
 ENTRY_POINT_NAMES = {
@@ -27,41 +14,8 @@ DEPENDENCY_FILES = ["requirements.txt", "pyproject.toml", "package.json", "go.mo
 SKIP_DIRS = {"test", "tests", "migrations", "node_modules", ".git", "dist", "build", "__pycache__", ".venv", "venv"}
 
 
-def _find_local_model_path() -> Optional[str]:
-    # 1. Environment variable (best)
-    env_path = os.environ.get(MODEL_PATH_ENV)
-    if env_path:
-        env_path = os.path.expanduser(env_path)
-        if os.path.exists(env_path):
-            return env_path
-
-    # 2. Search common folders
-    search_dirs = [
-        Path.cwd(),
-        Path(__file__).parent,
-        Path(__file__).parent/"models",
-        Path.home() / "models",
-        Path.home() / ".models",
-    ]
-
-    for base in search_dirs:
-        if not base.exists():
-            continue
-        for pattern in ["*.gguf", "*.bin"]:
-            matches = list(base.glob(pattern))
-            if matches:
-                return str(matches[0])
-
-    return None
-
-
 def _read_file_snippet(path: Path, max_chars: int = 14000) -> str:
-    try:
-        with path.open("r", encoding="utf-8", errors="ignore") as f:
-            text = f.read(max_chars)
-            return text.strip()
-    except Exception:
-        return ""
+    return read_text_safe(path, max_chars=max_chars).strip()
 
 
 def _collect_repo_text(repo_folder_path: str) -> str:
@@ -196,32 +150,6 @@ def _build_prompt(repo_folder_path: str, repo_url: Optional[str] = None) -> str:
     ])
 
 
-def _llama_available() -> bool:
-    if not _LLAMA_CPP_AVAILABLE:
-        print("LLAMA.CPP LIBRARY NOT AVAILABLE")
-        return False
-    model_path = _find_local_model_path()
-    return bool(model_path)
-
-
-def _generate_with_llama(prompt: str) -> Optional[str]:
-    model_path = _find_local_model_path()
-    if not model_path or not _LLAMA_CPP_AVAILABLE:
-        return None
-
-    try:
-        llama = Llama(model_path=model_path,
-                      n_ctx=4096,
-                      verbose=False,
-        )
-        response = llama.create_completion(prompt=prompt, max_tokens=MAX_TOKENS, temperature=TEMPERATURE)  # Sets prompt values to config
-        text = response.get("choices", [{}])[0].get("text")
-        return text.strip() if isinstance(text, str) else None
-    except Exception as e:
-        print(f"Error during Llama generation: {e}")
-        return None
-
-
 def _heuristic_repo_summary(repo_folder_path: str, repo_url: Optional[str] = None) -> str:
     metadata = _compute_repo_metadata(repo_folder_path)
     readme_text = ""
@@ -275,8 +203,8 @@ def generate_repo_overview(repo_folder_path: str, repo_url: Optional[str] = None
         return "Repository folder not found. Please make sure the repository has been downloaded."
 
     prompt = _build_prompt(repo_folder_path, repo_url)
-    if _llama_available():
-        result = _generate_with_llama(prompt)
+    if llama_available():
+        result = generate_with_llama(prompt)
         if result:
             return result
 
@@ -292,7 +220,7 @@ def generate_file_overview(file_path: str) -> str:
     if not content:
         return "Unable to read file contents."
 
-    if _llama_available():
+    if llama_available():
         prompt = "\n".join([
             "You are a senior developer writing documentation for other developers.",
             "Analyse the source file below and answer each of the following sections:",
@@ -313,7 +241,7 @@ def generate_file_overview(file_path: str) -> str:
             "Write the structured overview now. Be specific — reference actual function names, "
             "classes, and variable names where relevant.",
         ])
-        result = _generate_with_llama(prompt)
+        result = generate_with_llama(prompt)
         if result:
             return result
         else:

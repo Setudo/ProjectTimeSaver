@@ -7,6 +7,7 @@ from PySide6.QtGui import QFontDatabase, QFont # Used to change fonts (as long a
 from screens import BlueScreen, RedScreen, GreenScreen, GitHubScreen
 import repo_puller
 from overview import generate_repo_overview, generate_file_overview
+from explain import collect_code_file_paths, generate_code_explanation, annotate_code_file, save_annotated_file
 import threading
 from logger import AppLogger
 
@@ -26,6 +27,8 @@ COLOR_TEXT_PRIMARY = "#e0e0e0"
 COLOR_TEXT_SECONDARY = "#a0a0a0"
 COLOR_ERROR = "#ff5252"
 COLOR_SUCCESS = "#4caf50"
+COLOR_ACCENT_RED = "#c41c3b"
+
 
 class MainScreen(QWidget):
     """Main screen with navigation buttons."""
@@ -231,6 +234,10 @@ class MainWindow(QMainWindow):
 
         self.blue_screen.repo_overview_requested.connect(self.on_generate_repo_overview)
         self.blue_screen.file_overview_requested.connect(self.on_generate_file_overview)
+        self.red_screen.refresh_files_requested.connect(self.on_refresh_red_files)
+        self.red_screen.code_explanation_requested.connect(self.on_generate_code_explanation)
+        self.red_screen.annotate_file_requested.connect(self.on_annotate_file)
+        self.red_screen.save_annotated_file_requested.connect(self.on_save_annotated_file)
 
         self.stacked.addWidget(self.blue_screen)
         self.stacked.addWidget(self.red_screen)
@@ -277,7 +284,7 @@ class MainWindow(QMainWindow):
         self.sidebar_buttons = []
         buttons_data = [
             ("Repo Overview", 0, COLOR_ACCENT_DARK_BLUE),
-            ("FIX #2", 1, "#c41c3b"),
+            ("Code Annotation", 1, COLOR_ACCENT_RED),
             ("FIX #3", 2, COLOR_SUCCESS),
         ]
         for label, index, accent_color in buttons_data:
@@ -454,9 +461,12 @@ class MainWindow(QMainWindow):
         self.red_screen.set_repo_info(self.current_repo_url)
         self.green_screen.set_repo_info(self.current_repo_url)
         self.github_screen.set_repo_info(self.current_repo_url)
-        self.blue_screen.set_repo_ready_state(bool(repo_folder and os.path.isdir(repo_folder)))
-        if repo_folder and os.path.isdir(repo_folder):
+        repo_ready = bool(repo_folder and os.path.isdir(repo_folder))
+        self.blue_screen.set_repo_ready_state(repo_ready)
+        self.red_screen.set_repo_ready_state(repo_ready)
+        if repo_ready:
             self.blue_screen.show_file_tree(repo_folder)
+            self.red_screen.show_code_files(repo_folder)
 
     def _get_repo_folder(self):
         if not self.current_repo_url:
@@ -577,6 +587,136 @@ class MainWindow(QMainWindow):
                 self.logger.info("File overview generation completed successfully")
             else:
                 self.logger.warning("File overview generation failed")
+
+    def on_refresh_red_files(self):
+        repo_folder = self._get_repo_folder()
+        self.logger.info("Refreshing code file list for Red screen")
+        if not repo_folder or not os.path.isdir(repo_folder):
+            self.red_screen.set_repo_ready_state(False)
+            return
+        self.red_screen.show_code_files(repo_folder)
+
+    def on_generate_code_explanation(self, file_path):
+        if not file_path or not os.path.isfile(file_path):
+            self.red_screen.set_status_text("Selected file not found. Please select a valid code file.")
+            self.logger.warning("Code explanation requested but selected file was missing")
+            return
+
+        self.logger.info(f"User requested code explanation for: {file_path}")
+        self.red_screen.set_status_text("Generating code explanation. This may take a moment...")
+        self.red_screen.set_explanation_text("")
+
+        class CodeExplanationWorker(QObject):
+            finished = Signal(str, bool)
+
+            def __init__(self, file_path, repo_root, logger_ref):
+                super().__init__()
+                self.file_path = file_path
+                self.repo_root = repo_root
+                self.logger = logger_ref
+
+            def run(self):
+                try:
+                    self.logger.info(f"Code explanation worker started for: {self.file_path}")
+                    summary = generate_code_explanation(self.file_path, self.repo_root)
+                    self.logger.info("Code explanation worker completed generation")
+                    self.finished.emit(summary, True)
+                except Exception as exc:
+                    self.logger.error(f"Code explanation generation failed: {str(exc)}")
+                    self.finished.emit(f"Code explanation generation failed: {str(exc)}", False)
+
+        repo_folder = self._get_repo_folder()
+        self.code_explanation_worker = CodeExplanationWorker(file_path, repo_folder, self.logger)
+        self.code_explanation_thread = QThread()
+        self.code_explanation_worker.moveToThread(self.code_explanation_thread)
+        self.code_explanation_worker.finished.connect(self._handle_code_explanation_result, Qt.QueuedConnection)
+        self.code_explanation_worker.finished.connect(self.code_explanation_worker.deleteLater, Qt.QueuedConnection)
+        self.code_explanation_thread.finished.connect(self.code_explanation_thread.deleteLater)
+        self.code_explanation_thread.started.connect(self.code_explanation_worker.run)
+        self.code_explanation_thread.start()
+
+    def _handle_code_explanation_result(self, text, success):
+        try:
+            self.red_screen.set_explanation_text(text)
+            self.red_screen.set_status_text("Explanation generation completed." if success else "Explanation generation failed.")
+        except Exception as exc:
+            self.logger.error(f"Failed to update Red screen explanation text: {exc}")
+        finally:
+            if hasattr(self, "code_explanation_thread") and self.code_explanation_thread:
+                self.code_explanation_thread.quit()
+            if success:
+                self.logger.info("Code explanation generation completed successfully")
+            else:
+                self.logger.warning("Code explanation generation failed")
+
+    def on_annotate_file(self, file_path):
+        if not file_path or not os.path.isfile(file_path):
+            self.red_screen.set_status_text("Selected file not found. Please select a valid code file.")
+            self.logger.warning("Annotate requested but selected file was missing")
+            return
+
+        self.logger.info(f"User requested file annotation for: {file_path}")
+        self.red_screen.set_status_text("Generating annotated version. This may take a moment...")
+        self.red_screen.set_explanation_text("")
+
+        class AnnotateWorker(QObject):
+            finished = Signal(str, bool)
+
+            def __init__(self, file_path, repo_root, logger_ref):
+                super().__init__()
+                self.file_path = file_path
+                self.repo_root = repo_root
+                self.logger = logger_ref
+
+            def run(self):
+                try:
+                    self.logger.info(f"Annotate worker started for: {self.file_path}")
+                    annotated = annotate_code_file(self.file_path, self.repo_root)
+                    self.logger.info("Annotate worker completed")
+                    self.finished.emit(annotated, True)
+                except Exception as exc:
+                    self.logger.error(f"Annotation failed: {str(exc)}")
+                    self.finished.emit(f"Annotation failed: {str(exc)}", False)
+
+        repo_folder = self._get_repo_folder()
+        self.annotate_worker = AnnotateWorker(file_path, repo_folder, self.logger)
+        self.annotate_thread = QThread()
+        self.annotate_worker.moveToThread(self.annotate_thread)
+        self.annotate_worker.finished.connect(self._handle_annotate_result, Qt.QueuedConnection)
+        self.annotate_worker.finished.connect(self.annotate_worker.deleteLater, Qt.QueuedConnection)
+        self.annotate_thread.finished.connect(self.annotate_thread.deleteLater)
+        self.annotate_thread.started.connect(self.annotate_worker.run)
+        self.annotate_thread.start()
+
+    def _handle_annotate_result(self, text, success):
+        try:
+            self.red_screen.set_annotated_text(text)
+            self.red_screen.set_status_text("Annotated version generated." if success else "Annotation failed.")
+            self.red_screen.set_save_enabled(success)
+        except Exception as exc:
+            self.logger.error(f"Failed to update Red screen annotated text: {exc}")
+        finally:
+            if hasattr(self, "annotate_thread") and self.annotate_thread:
+                self.annotate_thread.quit()
+            if success:
+                self.logger.info("File annotation completed successfully")
+            else:
+                self.logger.warning("File annotation failed")
+
+    def on_save_annotated_file(self, file_path, annotated_content):
+        if not file_path or not annotated_content:
+            self.red_screen.set_status_text("No annotated content is available to save.")
+            self.logger.warning("Save annotated file requested without content")
+            return
+
+        self.logger.info(f"Saving annotated file for: {file_path}")
+        success, saved_path = save_annotated_file(file_path, annotated_content)
+        if success:
+            self.red_screen.set_status_text(f"Annotated file saved to: {saved_path}")
+            self.logger.info(f"Annotated file saved: {saved_path}")
+        else:
+            self.red_screen.set_status_text(f"Failed to save annotated file: {saved_path}")
+            self.logger.warning(f"Saving annotated file failed: {saved_path}")
 
     def on_repo_linked(self, repo_url):
         """Handle repository linking by downloading the repo in a background thread."""
