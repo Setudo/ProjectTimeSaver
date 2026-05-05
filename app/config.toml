@@ -1,5 +1,5 @@
 [ai]
-max_tokens = 100
+max_tokens = 4096
 temperature = 0.0
 
 [repo]

@@ -1,10 +1,11 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QProgressBar, QScrollArea, QTextEdit, QTreeWidget, QTreeWidgetItem, QSplitter, QFormLayout, QSpinBox, QDoubleSpinBox
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QProgressBar, QScrollArea, QTextEdit, QTreeWidget, QTreeWidgetItem, QSplitter, QFormLayout, QSpinBox, QDoubleSpinBox, QInputDialog
 from PySide6.QtCore import Qt, Signal, QUrl
 from PySide6.QtGui import QFont
 from pathlib import Path
 import os
 from explain import collect_code_file_paths
 from config import load_config, save_config
+from tester import get_test_sets_list, read_test_csv, get_next_test_set_number
 
 # Modern dark theme with programmer-focused design
 GRADIENT_BACKGROUND = """
@@ -978,23 +979,276 @@ class RedScreen(BaseScreen):
 
 
 class GreenScreen(BaseScreen):
+    test_scenarios_requested = Signal()
+    code_templates_requested = Signal()
+
     def __init__(self):
         super().__init__()
         self.setStyleSheet(GRADIENT_BACKGROUND)
-        
+        self.repo_folder_path = None
+        self.selected_file_path = None
+        self.test_sets_folder = None
+
         # Add content
-        title = QLabel("Fix #3")
+        title = QLabel("Test Creator")
         title.setStyleSheet(f"background-color: transparent; font-size: 32px; font-weight: bold; color: {COLOR_SUCCESS};")
         title.setFont(QFont("Courier New", 28, QFont.Bold))
         title.setAlignment(Qt.AlignCenter)
         self.add_content(title)
         
-        description = QLabel("This is the green screen for Fix #3\nYour implementation goes here")
+        description = QLabel("Generate test scenarios and code templates, then save them as CSV files for your repository.")
         description.setStyleSheet(f"background-color: transparent; font-size: 14px; color: {COLOR_TEXT_SECONDARY}; text-align: center;")
         description.setAlignment(Qt.AlignCenter)
         self.add_content(description)
-        
+
+        control_row = QWidget()
+        control_row.setStyleSheet("background-color: transparent;")
+        control_layout = QHBoxLayout(control_row)
+        control_layout.setSpacing(12)
+        control_layout.setContentsMargins(0, 0, 0, 0)
+
+        button_style = f"""
+            QPushButton {{
+                background-color: {COLOR_SURFACE};
+                color: {COLOR_TEXT_PRIMARY};
+                border: 1px solid {COLOR_SURFACE_LIGHT};
+                border-radius: 0px;
+                padding: 10px 16px;
+                font-size: 12px;
+                font-weight: 600;
+                font-family: 'Courier New', monospace;
+            }}
+            QPushButton:hover {{
+                background-color: {COLOR_SURFACE_LIGHT};
+                border: 1px solid {COLOR_ACCENT_BLUE};
+                color: {COLOR_ACCENT_BLUE};
+            }}
+            QPushButton:pressed {{
+                background-color: {COLOR_SUCCESS};
+                color: #0f1419;
+            }}
+        """
+
+        self.scenarios_button = QPushButton("Generate test scenarios")
+        self.scenarios_button.setStyleSheet(button_style)
+        self.scenarios_button.setCursor(Qt.PointingHandCursor)
+        self.scenarios_button.setEnabled(False)
+        self.scenarios_button.clicked.connect(self.test_scenarios_requested.emit)
+        control_layout.addWidget(self.scenarios_button)
+
+        self.templates_button = QPushButton("Generate code templates")
+        self.templates_button.setStyleSheet(button_style)
+        self.templates_button.setCursor(Qt.PointingHandCursor)
+        self.templates_button.setEnabled(False)
+        self.templates_button.clicked.connect(self.code_templates_requested.emit)
+        control_layout.addWidget(self.templates_button)
+
+        self.refresh_button = QPushButton("Refresh file list")
+        self.refresh_button.setStyleSheet(button_style)
+        self.refresh_button.setCursor(Qt.PointingHandCursor)
+        self.refresh_button.clicked.connect(self._on_refresh_clicked)
+        control_layout.addWidget(self.refresh_button)
+
+        self.add_content(control_row)
+
+        self.status_label = QLabel("Link a repository to generate test sets.")
+        self.status_label.setStyleSheet(f"background-color: transparent; font-size: 12px; color: {COLOR_TEXT_SECONDARY};")
+        self.status_label.setAlignment(Qt.AlignLeft)
+        self.add_content(self.status_label)
+
+        self.files_label = QLabel("Saved test sets")
+        self.files_label.setStyleSheet(f"background-color: transparent; font-size: 13px; font-weight: 600; color: {COLOR_TEXT_PRIMARY};")
+        self.files_label.setAlignment(Qt.AlignLeft)
+        self.files_label.setVisible(False)
+        self.add_content(self.files_label)
+
+        self.file_tree = QTreeWidget()
+        self.file_tree.setHeaderHidden(True)
+        self.file_tree.setStyleSheet(f"background-color: {COLOR_SURFACE}; color: {COLOR_TEXT_PRIMARY}; border: 1px solid {COLOR_SURFACE_LIGHT}; font-family: 'Courier New', monospace; font-size: 11px;")
+        self.file_tree.setSelectionMode(QTreeWidget.SingleSelection)
+        self.file_tree.itemSelectionChanged.connect(self._on_file_selection_changed)
+        self.file_tree.setVisible(False)
+        self.add_content(self.file_tree)
+
+        self.file_preview = QTextEdit()
+        self.file_preview.setReadOnly(True)
+        self.file_preview.setStyleSheet(f"background-color: {COLOR_SURFACE}; color: {COLOR_TEXT_PRIMARY}; border: 1px solid {COLOR_SURFACE_LIGHT}; font-family: 'Courier New', monospace; font-size: 10px;")
+        self.file_preview.setMinimumHeight(260)
+        self.file_preview.setPlaceholderText("Select a test set file to preview its contents.")
+        self.file_preview.setVisible(False)
+        self.add_content(self.file_preview)
+
+        # Progress bar + cancel button (hidden by default)
+        progress_row = QWidget()
+        progress_row.setStyleSheet("background-color: transparent;")
+        progress_layout = QHBoxLayout(progress_row)
+        progress_layout.setContentsMargins(0, 0, 0, 0)
+        progress_layout.setSpacing(10)
+
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setTextVisible(True)
+        self.progress_bar.setFormat("Generating... %p%")
+        self.progress_bar.setMinimumHeight(24)
+        self.progress_bar.setStyleSheet(f"""
+            QProgressBar {{
+                background-color: {COLOR_SURFACE};
+                border: 1px solid {COLOR_SURFACE_LIGHT};
+                border-radius: 0px;
+                color: {COLOR_TEXT_PRIMARY};
+                font-family: 'Courier New', monospace;
+                font-size: 11px;
+                text-align: center;
+            }}
+            QProgressBar::chunk {{
+                background-color: {COLOR_SUCCESS};
+            }}
+        """)
+        self.progress_bar.setVisible(False)
+        progress_layout.addWidget(self.progress_bar)
+
+        self.cancel_gen_button = QPushButton("Cancel")
+        self.cancel_gen_button.setFixedWidth(80)
+        self.cancel_gen_button.setMinimumHeight(24)
+        self.cancel_gen_button.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {COLOR_SURFACE};
+                color: {COLOR_ERROR};
+                border: 1px solid {COLOR_SURFACE_LIGHT};
+                border-radius: 0px;
+                font-size: 11px;
+                font-weight: 500;
+                font-family: 'Courier New', monospace;
+            }}
+            QPushButton:hover {{
+                background-color: {COLOR_ERROR};
+                border: 1px solid {COLOR_ERROR};
+                color: #0f1419;
+            }}
+            QPushButton:pressed {{
+                background-color: {COLOR_ERROR};
+                border: 1px solid {COLOR_ERROR};
+                color: #0f1419;
+            }}
+        """)
+        self.cancel_gen_button.setCursor(Qt.PointingHandCursor)
+        self.cancel_gen_button.setVisible(False)
+        progress_layout.addWidget(self.cancel_gen_button)
+
+        self.add_content(progress_row)
+
         self.add_stretch()
+
+    def set_repo_ready_state(self, enabled: bool):
+        """Enable/disable generation buttons based on repo state."""
+        self.scenarios_button.setEnabled(enabled)
+        self.templates_button.setEnabled(enabled)
+        if not enabled:
+            self.clear_selection()
+            self.file_tree.clear()
+            self.file_tree.setVisible(False)
+            self.files_label.setVisible(False)
+            self.file_preview.clear()
+            self.file_preview.setVisible(False)
+            self.status_label.setText("Link a repository to generate test sets.")
+
+    def setup_repo(self, repo_folder_path: str, test_sets_folder: str):
+        """Initialize the screen with repo and test_sets folder paths."""
+        self.repo_folder_path = repo_folder_path
+        self.test_sets_folder = test_sets_folder
+        self.selected_file_path = None
+        self.set_repo_ready_state(True)
+        self.show_test_files()
+
+    def show_test_files(self):
+        """Load and display available test set files."""
+        if not self.test_sets_folder:
+            return
+
+        self.file_tree.clear()
+        self.selected_file_path = None
+        self.file_preview.clear()
+
+        test_files = get_test_sets_list(self.test_sets_folder)
+
+        if not test_files:
+            self.files_label.setVisible(False)
+            self.file_tree.setVisible(False)
+            self.file_preview.setVisible(False)
+            self.status_label.setText("No test sets saved yet. Generate one to get started.")
+            return
+
+        self.files_label.setVisible(True)
+        self.file_tree.setVisible(True)
+        self.status_label.setText(f"Loaded {len(test_files)} test set(s). Select one to preview.")
+
+        for filename, full_path, file_size, mod_time in test_files:
+            item = QTreeWidgetItem([filename])
+            item.setData(0, Qt.UserRole, full_path)
+            self.file_tree.addTopLevelItem(item)
+
+    def _on_file_selection_changed(self):
+        """Handle test set file selection."""
+        selected_items = self.file_tree.selectedItems()
+        if not selected_items:
+            self.file_preview.clear()
+            self.file_preview.setVisible(False)
+            return
+
+        item = selected_items[0]
+        file_path = item.data(0, Qt.UserRole)
+        if not file_path or not os.path.isfile(file_path):
+            return
+
+        self.selected_file_path = file_path
+        self.status_label.setText(f"Selected: {os.path.basename(file_path)}")
+        self._load_file_preview(file_path)
+
+    def _load_file_preview(self, file_path: str):
+        """Load and display CSV file preview."""
+        try:
+            content = read_test_csv(file_path)
+            self.file_preview.setPlainText(content)
+            self.file_preview.setVisible(True)
+        except Exception as exc:
+            self.file_preview.setPlainText(f"Unable to preview file: {exc}")
+            self.file_preview.setVisible(True)
+
+    def _on_refresh_clicked(self):
+        """Refresh the test files list."""
+        self.show_test_files()
+        self.status_label.setText("Test set list refreshed.")
+
+    def show_generation_progress(self):
+        """Show the progress bar and cancel button."""
+        self.progress_bar.setValue(0)
+        self.progress_bar.setFormat("Generating... %p%")
+        self.progress_bar.setVisible(True)
+        self.cancel_gen_button.setVisible(True)
+        self.scenarios_button.setEnabled(False)
+        self.templates_button.setEnabled(False)
+        self.refresh_button.setEnabled(False)
+
+    def update_generation_progress(self, value: int):
+        """Update the progress bar value (0-100)."""
+        self.progress_bar.setValue(value)
+
+    def hide_generation_progress(self, cancelled: bool = False):
+        """Hide the progress bar and cancel button."""
+        self.progress_bar.setVisible(False)
+        self.cancel_gen_button.setVisible(False)
+        self.scenarios_button.setEnabled(True)
+        self.templates_button.setEnabled(True)
+        self.refresh_button.setEnabled(True)
+        if cancelled:
+            self.status_label.setText("Generation cancelled.")
+
+    def set_status_text(self, text: str):
+        """Update status label."""
+        self.status_label.setText(text)
+
+
 
 
 class GitHubScreen(BaseScreen):

@@ -206,6 +206,6 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
-# VSCode
+# VSCode - REMOVE .GGUF AFTER LARGE GITHUB FILES SORTED
 .vscode/
 *.gguf

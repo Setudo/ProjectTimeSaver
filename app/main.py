@@ -1,13 +1,14 @@
 import sys
 import os
 import shutil
-from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QStackedWidget, QLabel, QSplitter, QSizePolicy
+from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QStackedWidget, QLabel, QSplitter, QSizePolicy, QInputDialog
 from PySide6.QtCore import Qt, QThread, Signal, QObject, QTimer
 from PySide6.QtGui import QFontDatabase, QFont # Used to change fonts (as long as they are downloaded)
 from screens import BlueScreen, RedScreen, GreenScreen, SettingsScreen, GitHubScreen
 import repo_puller
 from overview import generate_repo_overview, generate_file_overview
 from explain import collect_code_file_paths, generate_code_explanation, annotate_code_file, save_annotated_file
+from tester import generate_test_scenarios, generate_code_templates, parse_ai_output_to_csv, create_test_csv, get_next_test_set_number
 import threading
 from logger import AppLogger
 
@@ -191,6 +192,7 @@ class MainWindow(QMainWindow):
         # Set up repos subfolder and logger
         self.app_dir = os.path.dirname(__file__)
         self.repos_folder = os.path.join(self.app_dir, "repos")
+        self.test_sets_folder = os.path.join(self.app_dir, "test_sets")
         self.logger = AppLogger(self.app_dir)
         self._install_exception_hook()
         self.logger.info("Application started")
@@ -222,6 +224,15 @@ class MainWindow(QMainWindow):
         # Track active generation threads so Python doesn't GC them early
         self._active_threads = []
 
+        # Test generation tracking
+        self.test_scenario_thread = None
+        self.test_scenario_worker = None
+        self.test_template_thread = None
+        self.test_template_worker = None
+        self._test_generation_cancelled = False
+        self._test_generation_progress_timer = None
+        self._current_test_generation_type = None
+
         # Create stacked widget for screen management
         self.stacked = QStackedWidget()
 
@@ -242,6 +253,9 @@ class MainWindow(QMainWindow):
         self.red_screen.code_explanation_requested.connect(self.on_generate_code_explanation)
         self.red_screen.annotate_file_requested.connect(self.on_annotate_file)
         self.red_screen.save_annotated_file_requested.connect(self.on_save_annotated_file)
+        self.green_screen.test_scenarios_requested.connect(self.on_generate_test_scenarios)
+        self.green_screen.code_templates_requested.connect(self.on_generate_code_templates)
+        self.green_screen.cancel_gen_button.clicked.connect(self.on_cancel_test_generation)
 
         self.stacked.addWidget(self.blue_screen)
         self.stacked.addWidget(self.red_screen)
@@ -421,10 +435,13 @@ class MainWindow(QMainWindow):
         sys.excepthook = handle_exception
 
     def ensure_repos_folder(self):
-        """Ensure the repos subfolder exists."""
+        """Ensure the repos and test_sets subfolders exist."""
         if not os.path.exists(self.repos_folder):
             os.makedirs(self.repos_folder)
             self.logger.debug(f"Created repos folder: {self.repos_folder}")
+        if not os.path.exists(self.test_sets_folder):
+            os.makedirs(self.test_sets_folder)
+            self.logger.debug(f"Created test_sets folder: {self.test_sets_folder}")
 
     def check_and_update_repo_status(self):
         """Check if a repo is already linked and update UI."""
@@ -473,9 +490,11 @@ class MainWindow(QMainWindow):
         repo_ready = bool(repo_folder and os.path.isdir(repo_folder))
         self.blue_screen.set_repo_ready_state(repo_ready)
         self.red_screen.set_repo_ready_state(repo_ready)
+        self.green_screen.set_repo_ready_state(repo_ready)
         if repo_ready:
             self.blue_screen.show_file_tree(repo_folder)
             self.red_screen.show_code_files(repo_folder)
+            self.green_screen.setup_repo(repo_folder, self.test_sets_folder)
 
     def _get_repo_folder(self):
         if not self.current_repo_url:
@@ -888,6 +907,200 @@ class MainWindow(QMainWindow):
         else:
             self.red_screen.set_status_text(f"Failed to save annotated file: {saved_path}")
             self.logger.warning(f"Saving annotated file failed: {saved_path}")
+
+    def on_generate_test_scenarios(self):
+        """Generate test scenarios for the repository."""
+        repo_folder = self._get_repo_folder()
+        if not repo_folder or not os.path.isdir(repo_folder):
+            self.green_screen.set_status_text("Repository not found.")
+            self.logger.warning("Test scenario generation requested but repo folder missing")
+            return
+
+        self.logger.info("User requested test scenario generation")
+        self.green_screen.set_status_text("Generating test scenarios...")
+        self.green_screen.show_generation_progress()
+        self._test_generation_cancelled = False
+        self._current_test_generation_type = "scenarios"
+
+        class TestScenarioWorker(QObject):
+            finished = Signal(str, bool)
+
+            def __init__(self, repo_path, logger_ref):
+                super().__init__()
+                self.repo_path = repo_path
+                self.logger = logger_ref
+                self.should_cancel = False
+
+            def run(self):
+                if self.should_cancel:
+                    return
+                try:
+                    self.logger.info("Test scenario worker started")
+                    result = generate_test_scenarios(self.repo_path)
+                    self.logger.info("Test scenario generation completed")
+                    self.finished.emit(result if result else "No content generated", result is not None)
+                except Exception as exc:
+                    self.logger.error(f"Test scenario generation failed: {str(exc)}")
+                    self.finished.emit(f"Test scenario generation failed: {str(exc)}", False)
+
+        self.test_scenario_worker = TestScenarioWorker(repo_folder, self.logger)
+        self.test_scenario_thread = QThread()
+        self.test_scenario_worker.moveToThread(self.test_scenario_thread)
+
+        self._test_generation_progress_timer = self._start_progress_timer(self.green_screen)
+
+        try:
+            self.green_screen.cancel_gen_button.clicked.disconnect()
+        except Exception:
+            pass
+        self.green_screen.cancel_gen_button.clicked.connect(self.on_cancel_test_generation)
+
+        self.test_scenario_worker.finished.connect(self._handle_test_generation_result, Qt.QueuedConnection)
+        self.test_scenario_worker.finished.connect(self.test_scenario_thread.quit, Qt.QueuedConnection)
+        self.test_scenario_worker.finished.connect(self.test_scenario_worker.deleteLater, Qt.QueuedConnection)
+        self.test_scenario_thread.finished.connect(self.test_scenario_thread.deleteLater)
+        self.test_scenario_thread.started.connect(self.test_scenario_worker.run)
+        self._track_thread(self.test_scenario_thread)
+        self.test_scenario_thread.start()
+
+    def on_generate_code_templates(self):
+        """Generate test code templates for the repository."""
+        repo_folder = self._get_repo_folder()
+        if not repo_folder or not os.path.isdir(repo_folder):
+            self.green_screen.set_status_text("Repository not found.")
+            self.logger.warning("Test template generation requested but repo folder missing")
+            return
+
+        self.logger.info("User requested test template generation")
+        self.green_screen.set_status_text("Generating test code templates...")
+        self.green_screen.show_generation_progress()
+        self._test_generation_cancelled = False
+        self._current_test_generation_type = "templates"
+
+        class TestTemplateWorker(QObject):
+            finished = Signal(str, bool)
+
+            def __init__(self, repo_path, logger_ref):
+                super().__init__()
+                self.repo_path = repo_path
+                self.logger = logger_ref
+                self.should_cancel = False
+
+            def run(self):
+                if self.should_cancel:
+                    return
+                try:
+                    self.logger.info("Test template worker started")
+                    result = generate_code_templates(self.repo_path)
+                    self.logger.info("Test template generation completed")
+                    self.finished.emit(result if result else "No content generated", result is not None)
+                except Exception as exc:
+                    self.logger.error(f"Test template generation failed: {str(exc)}")
+                    self.finished.emit(f"Test template generation failed: {str(exc)}", False)
+
+        self.test_template_worker = TestTemplateWorker(repo_folder, self.logger)
+        self.test_template_thread = QThread()
+        self.test_template_worker.moveToThread(self.test_template_thread)
+
+        self._test_generation_progress_timer = self._start_progress_timer(self.green_screen)
+
+        try:
+            self.green_screen.cancel_gen_button.clicked.disconnect()
+        except Exception:
+            pass
+        self.green_screen.cancel_gen_button.clicked.connect(self.on_cancel_test_generation)
+
+        self.test_template_worker.finished.connect(self._handle_test_generation_result, Qt.QueuedConnection)
+        self.test_template_worker.finished.connect(self.test_template_thread.quit, Qt.QueuedConnection)
+        self.test_template_worker.finished.connect(self.test_template_worker.deleteLater, Qt.QueuedConnection)
+        self.test_template_thread.finished.connect(self.test_template_thread.deleteLater)
+        self.test_template_thread.started.connect(self.test_template_worker.run)
+        self._track_thread(self.test_template_thread)
+        self.test_template_thread.start()
+
+    def on_cancel_test_generation(self):
+        """Cancel the running test generation."""
+        self.logger.warning("User cancelled test generation")
+        self._test_generation_cancelled = True
+        
+        if hasattr(self, 'test_scenario_worker') and self.test_scenario_worker:
+            self.test_scenario_worker.should_cancel = True
+        if hasattr(self, 'test_scenario_thread') and self.test_scenario_thread and self.test_scenario_thread.isRunning():
+            self.test_scenario_thread.quit()
+        
+        if hasattr(self, 'test_template_worker') and self.test_template_worker:
+            self.test_template_worker.should_cancel = True
+        if hasattr(self, 'test_template_thread') and self.test_template_thread and self.test_template_thread.isRunning():
+            self.test_template_thread.quit()
+        
+        self._stop_progress_timer(getattr(self, '_test_generation_progress_timer', None))
+        self._test_generation_progress_timer = None
+        self.green_screen.hide_generation_progress(cancelled=True)
+
+    def _handle_test_generation_result(self, ai_text, success):
+        """Handle the result of test generation and show naming dialog."""
+        if getattr(self, '_test_generation_cancelled', False):
+            return
+        
+        self._stop_progress_timer(getattr(self, '_test_generation_progress_timer', None))
+        self._test_generation_progress_timer = None
+        
+        try:
+            self.green_screen.update_generation_progress(100)
+            
+            if not success:
+                self.green_screen.set_status_text("Test generation failed.")
+                self.logger.warning("Test generation failed")
+                self.green_screen.hide_generation_progress(cancelled=False)
+                return
+            
+            # Parse AI output to CSV format
+            test_data = parse_ai_output_to_csv(ai_text)
+            
+            if not test_data:
+                self.green_screen.set_status_text("No test data could be extracted from generation.")
+                self.logger.warning("Test generation produced no parseable data")
+                self.green_screen.hide_generation_progress(cancelled=False)
+                return
+            
+            # Show naming dialog
+            next_num = get_next_test_set_number(self.test_sets_folder)
+            default_name = f"{next_num}_test_set"
+            
+            name, ok_pressed = QInputDialog.getText(
+                self.green_screen,
+                "Save Test Set",
+                "Enter a name for this test set:",
+                text=default_name
+            )
+            
+            if not ok_pressed or not name.strip():
+                self.green_screen.set_status_text("Test set save cancelled.")
+                self.green_screen.hide_generation_progress(cancelled=False)
+                return
+            
+            # Ensure filename has .csv extension
+            if not name.endswith('.csv'):
+                name = name + '.csv'
+            
+            output_path = os.path.join(self.test_sets_folder, name)
+            
+            # Save CSV file
+            if create_test_csv(test_data, output_path):
+                self.green_screen.set_status_text(f"Test set saved: {name} ({len(test_data)} tests)")
+                self.logger.info(f"Test set saved: {output_path}")
+                # Refresh file list
+                self.green_screen.show_test_files()
+            else:
+                self.green_screen.set_status_text(f"Failed to save test set.")
+                self.logger.warning(f"Failed to save test set to {output_path}")
+        
+        except Exception as exc:
+            self.logger.error(f"Error handling test generation result: {exc}")
+            self.green_screen.set_status_text(f"Error processing test generation: {str(exc)}")
+        
+        finally:
+            self.green_screen.hide_generation_progress(cancelled=False)
 
     def on_repo_linked(self, repo_url):
         """Handle repository linking by downloading the repo in a background thread."""
