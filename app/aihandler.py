@@ -57,7 +57,9 @@ def generate_with_llama(prompt: str) -> Optional[str]:
     try:
         llama = Llama(model_path=model_path, n_ctx=4096, verbose=False)
         response = llama.create_completion(prompt=prompt, max_tokens=config.MAX_TOKENS, temperature=config.TEMPERATURE)
+        print("\nResponse:",response,"\n") # Debugging output
         text = response.get("choices", [{}])[0].get("text")
+        print("\nGenerated Text:",text,"\n") # Debugging output
         return text.strip() if isinstance(text, str) else None
     except Exception as e:
         print(f"Error during Llama generation: {e}")

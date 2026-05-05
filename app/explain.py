@@ -272,7 +272,7 @@ def generate_code_explanation(file_path: str, repo_root: str = None) -> str:
 def _build_annotation_prompt(path: Path, content: str) -> str:
     comment_prefix = _comment_prefix_for_file(path)
     return "\n".join([
-        "You are an assistant that annotates source code by adding concise comments above functions, classes, methods, and important blocks.",
+        "You are adding comments to functions in a code file to explain their behaviour",
         "Preserve the original code exactly and do not change its behavior.",
         f"Use {comment_prefix} as the comment syntax for this file.",
         "Return only the rewritten source code with comments included.",

@@ -313,6 +313,66 @@ class BlueScreen(BaseScreen):
         self.file_tree_splitter.setVisible(False)
         self.add_content(self.file_tree_splitter)
 
+        # Progress bar + cancel button (hidden by default)
+        progress_row = QWidget()
+        progress_row.setStyleSheet("background-color: transparent;")
+        progress_layout = QHBoxLayout(progress_row)
+        progress_layout.setContentsMargins(0, 0, 0, 0)
+        progress_layout.setSpacing(10)
+
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setTextVisible(True)
+        self.progress_bar.setFormat("Generating... %p%")
+        self.progress_bar.setMinimumHeight(24)
+        self.progress_bar.setStyleSheet(f"""
+            QProgressBar {{
+                background-color: {COLOR_SURFACE};
+                border: 1px solid {COLOR_SURFACE_LIGHT};
+                border-radius: 0px;
+                color: {COLOR_TEXT_PRIMARY};
+                font-family: 'Courier New', monospace;
+                font-size: 11px;
+                text-align: center;
+            }}
+            QProgressBar::chunk {{
+                background-color: {COLOR_ACCENT_BLUE};
+            }}
+        """)
+        self.progress_bar.setVisible(False)
+        progress_layout.addWidget(self.progress_bar)
+
+        self.cancel_gen_button = QPushButton("Cancel")
+        self.cancel_gen_button.setFixedWidth(80)
+        self.cancel_gen_button.setMinimumHeight(24)
+        self.cancel_gen_button.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {COLOR_SURFACE};
+                color: {COLOR_ERROR};
+                border: 1px solid {COLOR_SURFACE_LIGHT};
+                border-radius: 0px;
+                font-size: 11px;
+                font-weight: 500;
+                font-family: 'Courier New', monospace;
+            }}
+            QPushButton:hover {{
+                background-color: {COLOR_ERROR};
+                border: 1px solid {COLOR_ERROR};
+                color: #0f1419;
+            }}
+            QPushButton:pressed {{
+                background-color: {COLOR_ERROR};
+                border: 1px solid {COLOR_ERROR};
+                color: #0f1419;
+            }}
+        """)
+        self.cancel_gen_button.setCursor(Qt.PointingHandCursor)
+        self.cancel_gen_button.setVisible(False)
+        progress_layout.addWidget(self.cancel_gen_button)
+
+        self.add_content(progress_row)
+
         self.overview_output = QTextEdit()
         self.overview_output.setReadOnly(True)
         self.overview_output.setMinimumHeight(260)
@@ -460,6 +520,26 @@ class BlueScreen(BaseScreen):
             self.overview_button.setText("Generate file overview")
         else:
             self.overview_button.setText("Generate repo overview")
+
+    def show_generation_progress(self):
+        """Show the progress bar and cancel button, disable generate button."""
+        self.progress_bar.setValue(0)
+        self.progress_bar.setFormat("Generating... %p%")
+        self.progress_bar.setVisible(True)
+        self.cancel_gen_button.setVisible(True)
+        self.overview_button.setEnabled(False)
+
+    def update_generation_progress(self, value: int):
+        """Update the progress bar value (0-100)."""
+        self.progress_bar.setValue(value)
+
+    def hide_generation_progress(self, cancelled: bool = False):
+        """Hide the progress bar and cancel button, re-enable generate button."""
+        self.progress_bar.setVisible(False)
+        self.cancel_gen_button.setVisible(False)
+        self.overview_button.setEnabled(True)
+        if cancelled:
+            self.overview_output.setPlaceholderText("Generation cancelled.")
 
 
 class SettingsScreen(BaseScreen):
@@ -694,6 +774,66 @@ class RedScreen(BaseScreen):
         self.tree_splitter.setVisible(False)
         self.add_content(self.tree_splitter)
 
+        # Progress bar + cancel button (hidden by default)
+        red_progress_row = QWidget()
+        red_progress_row.setStyleSheet("background-color: transparent;")
+        red_progress_layout = QHBoxLayout(red_progress_row)
+        red_progress_layout.setContentsMargins(0, 0, 0, 0)
+        red_progress_layout.setSpacing(10)
+
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setTextVisible(True)
+        self.progress_bar.setFormat("Generating... %p%")
+        self.progress_bar.setMinimumHeight(24)
+        self.progress_bar.setStyleSheet(f"""
+            QProgressBar {{
+                background-color: {COLOR_SURFACE};
+                border: 1px solid {COLOR_SURFACE_LIGHT};
+                border-radius: 0px;
+                color: {COLOR_TEXT_PRIMARY};
+                font-family: 'Courier New', monospace;
+                font-size: 11px;
+                text-align: center;
+            }}
+            QProgressBar::chunk {{
+                background-color: {COLOR_ACCENT_RED};
+            }}
+        """)
+        self.progress_bar.setVisible(False)
+        red_progress_layout.addWidget(self.progress_bar)
+
+        self.cancel_gen_button = QPushButton("Cancel")
+        self.cancel_gen_button.setFixedWidth(80)
+        self.cancel_gen_button.setMinimumHeight(24)
+        self.cancel_gen_button.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {COLOR_SURFACE};
+                color: {COLOR_ERROR};
+                border: 1px solid {COLOR_SURFACE_LIGHT};
+                border-radius: 0px;
+                font-size: 11px;
+                font-weight: 500;
+                font-family: 'Courier New', monospace;
+            }}
+            QPushButton:hover {{
+                background-color: {COLOR_ERROR};
+                border: 1px solid {COLOR_ERROR};
+                color: #0f1419;
+            }}
+            QPushButton:pressed {{
+                background-color: {COLOR_ERROR};
+                border: 1px solid {COLOR_ERROR};
+                color: #0f1419;
+            }}
+        """)
+        self.cancel_gen_button.setCursor(Qt.PointingHandCursor)
+        self.cancel_gen_button.setVisible(False)
+        red_progress_layout.addWidget(self.cancel_gen_button)
+
+        self.add_content(red_progress_row)
+
         self.explanation_output = QTextEdit()
         self.explanation_output.setReadOnly(True)
         self.explanation_output.setMinimumHeight(260)
@@ -812,6 +952,29 @@ class RedScreen(BaseScreen):
         self.save_button.setEnabled(False)
         self.annotated_content = ""
         self.explanation_output.clear()
+
+    def show_generation_progress(self):
+        """Show the progress bar and cancel button, disable action buttons."""
+        self.progress_bar.setValue(0)
+        self.progress_bar.setFormat("Generating... %p%")
+        self.progress_bar.setVisible(True)
+        self.cancel_gen_button.setVisible(True)
+        self.explain_button.setEnabled(False)
+        self.annotate_button.setEnabled(False)
+
+    def update_generation_progress(self, value: int):
+        """Update the progress bar value (0-100)."""
+        self.progress_bar.setValue(value)
+
+    def hide_generation_progress(self, cancelled: bool = False):
+        """Hide the progress bar and cancel button, re-enable action buttons."""
+        self.progress_bar.setVisible(False)
+        self.cancel_gen_button.setVisible(False)
+        has_file = bool(self.selected_file_path)
+        self.explain_button.setEnabled(has_file)
+        self.annotate_button.setEnabled(has_file)
+        if cancelled:
+            self.status_label.setText("Generation cancelled.")
 
 
 class GreenScreen(BaseScreen):

@@ -219,6 +219,9 @@ class MainWindow(QMainWindow):
         self.download_worker = None
         self.should_cancel_download = False
 
+        # Track active generation threads so Python doesn't GC them early
+        self._active_threads = []
+
         # Create stacked widget for screen management
         self.stacked = QStackedWidget()
 
@@ -492,6 +495,38 @@ class MainWindow(QMainWindow):
         self.stacked.setCurrentIndex(0)
         self.check_and_update_repo_status()
 
+    def _start_progress_timer(self, screen, interval_ms: int = 300):
+        """Start a QTimer that increments the progress bar up to 90% while generation runs."""
+        timer = QTimer(self)
+        timer.setInterval(interval_ms)
+        progress_state = {"value": 0}
+
+        def _tick():
+            v = progress_state["value"]
+            # Ease toward 90% asymptotically: each tick adds a smaller increment
+            if v < 90:
+                increment = max(1, int((90 - v) * 0.06))
+                v = min(90, v + increment)
+                progress_state["value"] = v
+                screen.update_generation_progress(v)
+
+        timer.timeout.connect(_tick)
+        timer.start()
+        return timer
+
+    def _stop_progress_timer(self, timer):
+        """Stop and clean up a progress timer."""
+        if timer and timer.isActive():
+            timer.stop()
+        if timer:
+            timer.deleteLater()
+
+    def _track_thread(self, thread: QThread):
+        """Keep a strong Python reference to a thread until it finishes,
+        preventing the GC from destroying the QThread while C++ is still running."""
+        self._active_threads.append(thread)
+        thread.finished.connect(lambda: self._active_threads.remove(thread) if thread in self._active_threads else None)
+
     def on_generate_repo_overview(self):
         repo_folder = self._get_repo_folder()
         self.logger.info("User requested repository overview generation")
@@ -500,7 +535,9 @@ class MainWindow(QMainWindow):
             self.logger.warning("Repository overview requested but no linked folder was available")
             return
 
-        self.blue_screen.set_overview_text("Generating repository overview. This may take a moment...")
+        self.blue_screen.set_overview_text("")
+        self.blue_screen.show_generation_progress()
+        self._overview_cancelled = False
 
         class OverviewWorker(QObject):
             finished = Signal(str, bool)
@@ -510,8 +547,11 @@ class MainWindow(QMainWindow):
                 self.folder_path = folder_path
                 self.repo_url = repo_url
                 self.logger = logger_ref
+                self.should_cancel = False
 
             def run(self):
+                if self.should_cancel:
+                    return  # Don't emit finished — cancel handler already updated UI
                 try:
                     self.logger.info(f"Overview worker started for folder: {self.folder_path}")
                     summary = generate_repo_overview(self.folder_path, self.repo_url)
@@ -525,21 +565,47 @@ class MainWindow(QMainWindow):
         self.overview_thread = QThread()
         self.overview_worker.moveToThread(self.overview_thread)
 
+        self._overview_progress_timer = self._start_progress_timer(self.blue_screen)
+
+        try:
+            self.blue_screen.cancel_gen_button.clicked.disconnect()
+        except Exception:
+            pass
+        self.blue_screen.cancel_gen_button.clicked.connect(self._cancel_overview_generation)
+
         self.overview_worker.finished.connect(self._apply_overview_result, Qt.QueuedConnection)
+        self.overview_worker.finished.connect(self.overview_thread.quit, Qt.QueuedConnection)
         self.overview_worker.finished.connect(self.overview_worker.deleteLater, Qt.QueuedConnection)
         self.overview_thread.finished.connect(self.overview_thread.deleteLater)
         self.overview_thread.started.connect(self.overview_worker.run)
+        self._track_thread(self.overview_thread)
         self.overview_thread.start()
+
+    def _cancel_overview_generation(self):
+        """Cancel the running overview generation."""
+        self.logger.warning("User cancelled overview generation")
+        self._overview_cancelled = True
+        if hasattr(self, 'overview_worker') and self.overview_worker:
+            self.overview_worker.should_cancel = True
+        if hasattr(self, 'overview_thread') and self.overview_thread and self.overview_thread.isRunning():
+            self.overview_thread.quit()
+        self._stop_progress_timer(getattr(self, '_overview_progress_timer', None))
+        self._overview_progress_timer = None
+        self.blue_screen.hide_generation_progress(cancelled=True)
 
     def _apply_overview_result(self, text, success):
         """Slot always called on the main thread via QueuedConnection."""
+        if getattr(self, '_overview_cancelled', False):
+            return
+        self._stop_progress_timer(getattr(self, '_overview_progress_timer', None))
+        self._overview_progress_timer = None
         try:
+            self.blue_screen.update_generation_progress(100)
             self.blue_screen.set_overview_text(text)
         except Exception as exc:
             self.logger.error(f"Failed to update overview text in main thread: {exc}")
         finally:
-            if hasattr(self, 'overview_thread') and self.overview_thread:
-                self.overview_thread.quit()
+            self.blue_screen.hide_generation_progress(cancelled=False)
             if success:
                 self.logger.info("Repository overview generation completed successfully")
             else:
@@ -552,7 +618,9 @@ class MainWindow(QMainWindow):
             return
 
         self.logger.info(f"User requested file overview generation for: {file_path}")
-        self.blue_screen.set_overview_text("Generating file overview. This may take a moment...")
+        self.blue_screen.set_overview_text("")
+        self.blue_screen.show_generation_progress()
+        self._file_overview_cancelled = False
 
         class FileOverviewWorker(QObject):
             finished = Signal(str, bool)
@@ -561,8 +629,11 @@ class MainWindow(QMainWindow):
                 super().__init__()
                 self.file_path = file_path
                 self.logger = logger_ref
+                self.should_cancel = False
 
             def run(self):
+                if self.should_cancel:
+                    return  # Don't emit — cancel handler already updated UI
                 try:
                     self.logger.info(f"File overview worker started for file: {self.file_path}")
                     summary = generate_file_overview(self.file_path)
@@ -576,21 +647,47 @@ class MainWindow(QMainWindow):
         self.file_overview_thread = QThread()
         self.file_overview_worker.moveToThread(self.file_overview_thread)
 
+        self._file_overview_progress_timer = self._start_progress_timer(self.blue_screen)
+
+        try:
+            self.blue_screen.cancel_gen_button.clicked.disconnect()
+        except Exception:
+            pass
+        self.blue_screen.cancel_gen_button.clicked.connect(self._cancel_file_overview_generation)
+
         self.file_overview_worker.finished.connect(self._handle_file_overview_result, Qt.QueuedConnection)
+        self.file_overview_worker.finished.connect(self.file_overview_thread.quit, Qt.QueuedConnection)
         self.file_overview_worker.finished.connect(self.file_overview_worker.deleteLater, Qt.QueuedConnection)
         self.file_overview_thread.finished.connect(self.file_overview_thread.deleteLater)
         self.file_overview_thread.started.connect(self.file_overview_worker.run)
+        self._track_thread(self.file_overview_thread)
         self.file_overview_thread.start()
+
+    def _cancel_file_overview_generation(self):
+        """Cancel the running file overview generation."""
+        self.logger.warning("User cancelled file overview generation")
+        self._file_overview_cancelled = True
+        if hasattr(self, 'file_overview_worker') and self.file_overview_worker:
+            self.file_overview_worker.should_cancel = True
+        if hasattr(self, 'file_overview_thread') and self.file_overview_thread and self.file_overview_thread.isRunning():
+            self.file_overview_thread.quit()
+        self._stop_progress_timer(getattr(self, '_file_overview_progress_timer', None))
+        self._file_overview_progress_timer = None
+        self.blue_screen.hide_generation_progress(cancelled=True)
 
     def _handle_file_overview_result(self, text, success):
         """Slot always called on the main thread via QueuedConnection."""
+        if getattr(self, '_file_overview_cancelled', False):
+            return
+        self._stop_progress_timer(getattr(self, '_file_overview_progress_timer', None))
+        self._file_overview_progress_timer = None
         try:
+            self.blue_screen.update_generation_progress(100)
             self.blue_screen.set_overview_text(text)
         except Exception as exc:
             self.logger.error(f"Failed to update file overview text in main thread: {exc}")
         finally:
-            if hasattr(self, 'file_overview_thread') and self.file_overview_thread:
-                self.file_overview_thread.quit()
+            self.blue_screen.hide_generation_progress(cancelled=False)
             if success:
                 self.logger.info("File overview generation completed successfully")
             else:
@@ -611,8 +708,10 @@ class MainWindow(QMainWindow):
             return
 
         self.logger.info(f"User requested code explanation for: {file_path}")
-        self.red_screen.set_status_text("Generating code explanation. This may take a moment...")
+        self.red_screen.set_status_text("Generating code explanation...")
         self.red_screen.set_explanation_text("")
+        self.red_screen.show_generation_progress()
+        self._code_explanation_cancelled = False
 
         class CodeExplanationWorker(QObject):
             finished = Signal(str, bool)
@@ -622,8 +721,11 @@ class MainWindow(QMainWindow):
                 self.file_path = file_path
                 self.repo_root = repo_root
                 self.logger = logger_ref
+                self.should_cancel = False
 
             def run(self):
+                if self.should_cancel:
+                    return  # Don't emit — cancel handler already updated UI
                 try:
                     self.logger.info(f"Code explanation worker started for: {self.file_path}")
                     summary = generate_code_explanation(self.file_path, self.repo_root)
@@ -637,21 +739,49 @@ class MainWindow(QMainWindow):
         self.code_explanation_worker = CodeExplanationWorker(file_path, repo_folder, self.logger)
         self.code_explanation_thread = QThread()
         self.code_explanation_worker.moveToThread(self.code_explanation_thread)
+
+        self._code_explanation_progress_timer = self._start_progress_timer(self.red_screen)
+
+        # Connect cancel button
+        try:
+            self.red_screen.cancel_gen_button.clicked.disconnect()
+        except Exception:
+            pass
+        self.red_screen.cancel_gen_button.clicked.connect(self._cancel_code_explanation)
+
         self.code_explanation_worker.finished.connect(self._handle_code_explanation_result, Qt.QueuedConnection)
+        self.code_explanation_worker.finished.connect(self.code_explanation_thread.quit, Qt.QueuedConnection)
         self.code_explanation_worker.finished.connect(self.code_explanation_worker.deleteLater, Qt.QueuedConnection)
         self.code_explanation_thread.finished.connect(self.code_explanation_thread.deleteLater)
         self.code_explanation_thread.started.connect(self.code_explanation_worker.run)
+        self._track_thread(self.code_explanation_thread)
         self.code_explanation_thread.start()
 
+    def _cancel_code_explanation(self):
+        """Cancel the running code explanation generation."""
+        self.logger.warning("User cancelled code explanation generation")
+        self._code_explanation_cancelled = True
+        if hasattr(self, 'code_explanation_worker') and self.code_explanation_worker:
+            self.code_explanation_worker.should_cancel = True
+        if hasattr(self, 'code_explanation_thread') and self.code_explanation_thread and self.code_explanation_thread.isRunning():
+            self.code_explanation_thread.quit()
+        self._stop_progress_timer(getattr(self, '_code_explanation_progress_timer', None))
+        self._code_explanation_progress_timer = None
+        self.red_screen.hide_generation_progress(cancelled=True)
+
     def _handle_code_explanation_result(self, text, success):
+        if getattr(self, '_code_explanation_cancelled', False):
+            return
+        self._stop_progress_timer(getattr(self, '_code_explanation_progress_timer', None))
+        self._code_explanation_progress_timer = None
         try:
+            self.red_screen.update_generation_progress(100)
             self.red_screen.set_explanation_text(text)
             self.red_screen.set_status_text("Explanation generation completed." if success else "Explanation generation failed.")
         except Exception as exc:
             self.logger.error(f"Failed to update Red screen explanation text: {exc}")
         finally:
-            if hasattr(self, "code_explanation_thread") and self.code_explanation_thread:
-                self.code_explanation_thread.quit()
+            self.red_screen.hide_generation_progress(cancelled=False)
             if success:
                 self.logger.info("Code explanation generation completed successfully")
             else:
@@ -664,8 +794,10 @@ class MainWindow(QMainWindow):
             return
 
         self.logger.info(f"User requested file annotation for: {file_path}")
-        self.red_screen.set_status_text("Generating annotated version. This may take a moment...")
+        self.red_screen.set_status_text("Generating annotated version...")
         self.red_screen.set_explanation_text("")
+        self.red_screen.show_generation_progress()
+        self._annotate_cancelled = False
 
         class AnnotateWorker(QObject):
             finished = Signal(str, bool)
@@ -675,8 +807,11 @@ class MainWindow(QMainWindow):
                 self.file_path = file_path
                 self.repo_root = repo_root
                 self.logger = logger_ref
+                self.should_cancel = False
 
             def run(self):
+                if self.should_cancel:
+                    return  # Don't emit — cancel handler already updated UI
                 try:
                     self.logger.info(f"Annotate worker started for: {self.file_path}")
                     annotated = annotate_code_file(self.file_path, self.repo_root)
@@ -690,22 +825,50 @@ class MainWindow(QMainWindow):
         self.annotate_worker = AnnotateWorker(file_path, repo_folder, self.logger)
         self.annotate_thread = QThread()
         self.annotate_worker.moveToThread(self.annotate_thread)
+
+        self._annotate_progress_timer = self._start_progress_timer(self.red_screen)
+
+        # Connect cancel button
+        try:
+            self.red_screen.cancel_gen_button.clicked.disconnect()
+        except Exception:
+            pass
+        self.red_screen.cancel_gen_button.clicked.connect(self._cancel_annotate)
+
         self.annotate_worker.finished.connect(self._handle_annotate_result, Qt.QueuedConnection)
+        self.annotate_worker.finished.connect(self.annotate_thread.quit, Qt.QueuedConnection)
         self.annotate_worker.finished.connect(self.annotate_worker.deleteLater, Qt.QueuedConnection)
         self.annotate_thread.finished.connect(self.annotate_thread.deleteLater)
         self.annotate_thread.started.connect(self.annotate_worker.run)
+        self._track_thread(self.annotate_thread)
         self.annotate_thread.start()
 
+    def _cancel_annotate(self):
+        """Cancel the running annotation generation."""
+        self.logger.warning("User cancelled annotation generation")
+        self._annotate_cancelled = True
+        if hasattr(self, 'annotate_worker') and self.annotate_worker:
+            self.annotate_worker.should_cancel = True
+        if hasattr(self, 'annotate_thread') and self.annotate_thread and self.annotate_thread.isRunning():
+            self.annotate_thread.quit()
+        self._stop_progress_timer(getattr(self, '_annotate_progress_timer', None))
+        self._annotate_progress_timer = None
+        self.red_screen.hide_generation_progress(cancelled=True)
+
     def _handle_annotate_result(self, text, success):
+        if getattr(self, '_annotate_cancelled', False):
+            return
+        self._stop_progress_timer(getattr(self, '_annotate_progress_timer', None))
+        self._annotate_progress_timer = None
         try:
+            self.red_screen.update_generation_progress(100)
             self.red_screen.set_annotated_text(text)
             self.red_screen.set_status_text("Annotated version generated." if success else "Annotation failed.")
             self.red_screen.set_save_enabled(success)
         except Exception as exc:
             self.logger.error(f"Failed to update Red screen annotated text: {exc}")
         finally:
-            if hasattr(self, "annotate_thread") and self.annotate_thread:
-                self.annotate_thread.quit()
+            self.red_screen.hide_generation_progress(cancelled=False)
             if success:
                 self.logger.info("File annotation completed successfully")
             else:
