@@ -175,8 +175,8 @@ class BaseScreen(QWidget):
         self.content_widget = QWidget()
         self.content_widget.setStyleSheet("background-color: transparent;")
         self.content_layout = QVBoxLayout(self.content_widget)
-        self.content_layout.setContentsMargins(40, 40, 40, 40)
-        self.content_layout.setSpacing(20)
+        self.content_layout.setContentsMargins(0, 0, 0, 0)
+        self.content_layout.setSpacing(0)
 
         main_layout.addWidget(self.content_widget)
 
@@ -209,17 +209,52 @@ class BlueScreen(BaseScreen):
         self.repo_folder_path = None
         self.selected_file_path = None
 
+        scroll_style = f"""
+            QScrollArea {{
+                background-color: transparent;
+                border: none;
+            }}
+            QScrollBar:vertical {{
+                background-color: {COLOR_SURFACE};
+                width: 8px;
+                border: none;
+            }}
+            QScrollBar::handle:vertical {{
+                background-color: {COLOR_SURFACE_LIGHT};
+                border-radius: 4px;
+                min-height: 20px;
+            }}
+            QScrollBar::handle:vertical:hover {{
+                background-color: {COLOR_ACCENT_BLUE};
+            }}
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
+                height: 0px;
+            }}
+        """
+
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        scroll_area.setStyleSheet(scroll_style)
+
+        scroll_container = QWidget()
+        scroll_container.setStyleSheet("background-color: transparent;")
+        scroll_layout = QVBoxLayout(scroll_container)
+        scroll_layout.setContentsMargins(40, 40, 40, 40)
+        scroll_layout.setSpacing(20)
+
         # Add content
         title = QLabel("Repository Overview")
         title.setStyleSheet(f"background-color: transparent; font-size: 32px; font-weight: bold; color: {COLOR_ACCENT_BLUE};")
         title.setFont(QFont("Courier New", 28, QFont.Bold))
         title.setAlignment(Qt.AlignCenter)
-        self.add_content(title)
+        scroll_layout.addWidget(title)
         
         description = QLabel("View the file structure and generate an instruction set for your repository.")
         description.setStyleSheet(f"background-color: transparent; font-size: 14px; color: {COLOR_TEXT_SECONDARY}; text-align: center;")
         description.setAlignment(Qt.AlignCenter)
-        self.add_content(description)
+        scroll_layout.addWidget(description)
 
         controls_container = QWidget()
         controls_container.setStyleSheet("background-color: transparent;")
@@ -278,19 +313,19 @@ class BlueScreen(BaseScreen):
         self.tree_button.setToolTip("Show or hide the repository file tree")
         controls_layout.addWidget(self.tree_button)
 
-        self.add_content(controls_container)
+        scroll_layout.addWidget(controls_container)
 
         self.file_tree_label = QLabel("Repository file tree")
         self.file_tree_label.setStyleSheet(f"background-color: transparent; font-size: 13px; font-weight: 600; color: {COLOR_TEXT_PRIMARY};")
         self.file_tree_label.setAlignment(Qt.AlignLeft)
         self.file_tree_label.setVisible(False)
-        self.add_content(self.file_tree_label)
+        scroll_layout.addWidget(self.file_tree_label)
 
         self.selected_file_label = QLabel("No file selected.")
         self.selected_file_label.setStyleSheet(f"background-color: transparent; font-size: 11px; color: {COLOR_TEXT_SECONDARY};")
         self.selected_file_label.setAlignment(Qt.AlignLeft)
         self.selected_file_label.setVisible(False)
-        self.add_content(self.selected_file_label)
+        scroll_layout.addWidget(self.selected_file_label)
 
         self.file_tree = QTreeWidget()
         self.file_tree.setHeaderHidden(True)
@@ -312,7 +347,7 @@ class BlueScreen(BaseScreen):
         self.file_tree_splitter.setStretchFactor(0, 1)
         self.file_tree_splitter.setStretchFactor(1, 2)
         self.file_tree_splitter.setVisible(False)
-        self.add_content(self.file_tree_splitter)
+        scroll_layout.addWidget(self.file_tree_splitter)
 
         # Progress bar + cancel button (hidden by default)
         progress_row = QWidget()
@@ -372,16 +407,18 @@ class BlueScreen(BaseScreen):
         self.cancel_gen_button.setVisible(False)
         progress_layout.addWidget(self.cancel_gen_button)
 
-        self.add_content(progress_row)
+        scroll_layout.addWidget(progress_row)
 
         self.overview_output = QTextEdit()
         self.overview_output.setReadOnly(True)
         self.overview_output.setMinimumHeight(260)
         self.overview_output.setStyleSheet(f"background-color: {COLOR_SURFACE}; color: {COLOR_TEXT_PRIMARY}; border: 1px solid {COLOR_SURFACE_LIGHT}; font-family: 'Courier New', monospace; font-size: 12px;")
         self.overview_output.setPlaceholderText("Repository overview will appear here after generation.")
-        self.add_content(self.overview_output)
+        scroll_layout.addWidget(self.overview_output)
 
-        self.add_stretch()
+        scroll_layout.addStretch()
+        scroll_area.setWidget(scroll_container)
+        self.add_content(scroll_area)
 
     def _on_overview_button_clicked(self):
         if self.selected_file_path:
@@ -589,16 +626,23 @@ class SettingsScreen(BaseScreen):
             }}
         """
 
+        # Outer wrapper to restore padding for the settings header and save button
+        outer_container = QWidget()
+        outer_container.setStyleSheet("background-color: transparent;")
+        outer_layout = QVBoxLayout(outer_container)
+        outer_layout.setContentsMargins(40, 40, 40, 40)
+        outer_layout.setSpacing(20)
+
         title = QLabel("Settings")
         title.setStyleSheet(f"background-color: transparent; font-size: 32px; font-weight: bold; color: {COLOR_TEXT_SECONDARY};")
         title.setFont(QFont("Courier New", 28, QFont.Bold))
         title.setAlignment(Qt.AlignCenter)
-        self.add_content(title)
+        outer_layout.addWidget(title)
 
         description = QLabel("Update configuration values stored in config.toml.")
         description.setStyleSheet(f"background-color: transparent; font-size: 14px; color: {COLOR_TEXT_SECONDARY};")
         description.setAlignment(Qt.AlignCenter)
-        self.add_content(description)
+        outer_layout.addWidget(description)
 
         # --- Scrollable form area ---
         scroll_area = QScrollArea()
@@ -682,7 +726,7 @@ class SettingsScreen(BaseScreen):
         form_layout.addRow(make_label("Max download size:"), self.max_download_size_input)
 
         scroll_area.setWidget(form_container)
-        self.add_content(scroll_area)
+        outer_layout.addWidget(scroll_area)
 
         # --- Save button row (always visible, outside scroll area) ---
         button_row = QWidget()
@@ -722,7 +766,8 @@ class SettingsScreen(BaseScreen):
         self.status_label.setAlignment(Qt.AlignLeft)
         button_layout.addWidget(self.status_label)
 
-        self.add_content(button_row)
+        outer_layout.addWidget(button_row)
+        self.add_content(outer_container)
 
     def load_settings(self):
         try:
@@ -773,17 +818,52 @@ class RedScreen(BaseScreen):
         self.selected_file_path = None
         self.annotated_content = ""
 
+        scroll_style = f"""
+            QScrollArea {{
+                background-color: transparent;
+                border: none;
+            }}
+            QScrollBar:vertical {{
+                background-color: {COLOR_SURFACE};
+                width: 8px;
+                border: none;
+            }}
+            QScrollBar::handle:vertical {{
+                background-color: {COLOR_SURFACE_LIGHT};
+                border-radius: 4px;
+                min-height: 20px;
+            }}
+            QScrollBar::handle:vertical:hover {{
+                background-color: {COLOR_ACCENT_BLUE};
+            }}
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
+                height: 0px;
+            }}
+        """
+
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        scroll_area.setStyleSheet(scroll_style)
+
+        scroll_container = QWidget()
+        scroll_container.setStyleSheet("background-color: transparent;")
+        scroll_layout = QVBoxLayout(scroll_container)
+        scroll_layout.setContentsMargins(40, 40, 40, 40)
+        scroll_layout.setSpacing(20)
+
         # Add content
         title = QLabel("Code Annoation")
         title.setStyleSheet(f"background-color: transparent; font-size: 32px; font-weight: bold; color: {COLOR_ACCENT_RED};")
         title.setFont(QFont("Courier New", 28, QFont.Bold))
         title.setAlignment(Qt.AlignCenter)
-        self.add_content(title)
-        
+        scroll_layout.addWidget(title)
+
         description = QLabel("Browse repository code files, generate explanations, annotate functions, and save annotated versions.")
         description.setStyleSheet(f"background-color: transparent; font-size: 14px; color: {COLOR_TEXT_SECONDARY}; text-align: center;")
         description.setAlignment(Qt.AlignCenter)
-        self.add_content(description)
+        scroll_layout.addWidget(description)
 
         control_row = QWidget()
         control_row.setStyleSheet("background-color: transparent;")
@@ -840,18 +920,18 @@ class RedScreen(BaseScreen):
         self.save_button.clicked.connect(self._on_save_clicked)
         control_layout.addWidget(self.save_button)
 
-        self.add_content(control_row)
+        scroll_layout.addWidget(control_row)
 
         self.status_label = QLabel("Link a repository to load code files.")
         self.status_label.setStyleSheet(f"background-color: transparent; font-size: 12px; color: {COLOR_TEXT_SECONDARY};")
         self.status_label.setAlignment(Qt.AlignLeft)
-        self.add_content(self.status_label)
+        scroll_layout.addWidget(self.status_label)
 
         self.file_tree_label = QLabel("Code files in repository")
         self.file_tree_label.setStyleSheet(f"background-color: transparent; font-size: 13px; font-weight: 600; color: {COLOR_TEXT_PRIMARY};")
         self.file_tree_label.setAlignment(Qt.AlignLeft)
         self.file_tree_label.setVisible(False)
-        self.add_content(self.file_tree_label)
+        scroll_layout.addWidget(self.file_tree_label)
 
         self.file_tree = QTreeWidget()
         self.file_tree.setHeaderHidden(True)
@@ -871,7 +951,7 @@ class RedScreen(BaseScreen):
         self.tree_splitter.setStretchFactor(0, 1)
         self.tree_splitter.setStretchFactor(1, 2)
         self.tree_splitter.setVisible(False)
-        self.add_content(self.tree_splitter)
+        scroll_layout.addWidget(self.tree_splitter)
 
         # Progress bar + cancel button (hidden by default)
         red_progress_row = QWidget()
@@ -931,7 +1011,7 @@ class RedScreen(BaseScreen):
         self.cancel_gen_button.setVisible(False)
         red_progress_layout.addWidget(self.cancel_gen_button)
 
-        self.add_content(red_progress_row)
+        scroll_layout.addWidget(red_progress_row)
 
         self.explanation_output = QTextEdit()
         self.explanation_output.setReadOnly(True)
@@ -939,9 +1019,11 @@ class RedScreen(BaseScreen):
         self.explanation_output.setStyleSheet(f"background-color: {COLOR_SURFACE}; color: {COLOR_TEXT_PRIMARY}; border: 1px solid {COLOR_SURFACE_LIGHT}; font-family: 'Courier New', monospace; font-size: 12px;")
         self.explanation_output.setPlaceholderText("Explanation and annotated content will appear here.")
         self.explanation_output.setVisible(False)
-        self.add_content(self.explanation_output)
+        scroll_layout.addWidget(self.explanation_output)
 
-        self.add_stretch()
+        scroll_layout.addStretch()
+        scroll_area.setWidget(scroll_container)
+        self.add_content(scroll_area)
 
     def set_repo_ready_state(self, enabled: bool):
         self.refresh_button.setEnabled(enabled)
@@ -1087,17 +1169,52 @@ class GreenScreen(BaseScreen):
         self.selected_file_path = None
         self.test_sets_folder = None
 
+        scroll_style = f"""
+            QScrollArea {{
+                background-color: transparent;
+                border: none;
+            }}
+            QScrollBar:vertical {{
+                background-color: {COLOR_SURFACE};
+                width: 8px;
+                border: none;
+            }}
+            QScrollBar::handle:vertical {{
+                background-color: {COLOR_SURFACE_LIGHT};
+                border-radius: 4px;
+                min-height: 20px;
+            }}
+            QScrollBar::handle:vertical:hover {{
+                background-color: {COLOR_ACCENT_BLUE};
+            }}
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
+                height: 0px;
+            }}
+        """
+
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        scroll_area.setStyleSheet(scroll_style)
+
+        scroll_container = QWidget()
+        scroll_container.setStyleSheet("background-color: transparent;")
+        scroll_layout = QVBoxLayout(scroll_container)
+        scroll_layout.setContentsMargins(40, 40, 40, 40)
+        scroll_layout.setSpacing(20)
+
         # Add content
         title = QLabel("Test Creator")
         title.setStyleSheet(f"background-color: transparent; font-size: 32px; font-weight: bold; color: {COLOR_SUCCESS};")
         title.setFont(QFont("Courier New", 28, QFont.Bold))
         title.setAlignment(Qt.AlignCenter)
-        self.add_content(title)
-        
+        scroll_layout.addWidget(title)
+
         description = QLabel("Generate test scenarios and code templates, then save them as CSV files for your repository.")
         description.setStyleSheet(f"background-color: transparent; font-size: 14px; color: {COLOR_TEXT_SECONDARY}; text-align: center;")
         description.setAlignment(Qt.AlignCenter)
-        self.add_content(description)
+        scroll_layout.addWidget(description)
 
         control_row = QWidget()
         control_row.setStyleSheet("background-color: transparent;")
@@ -1147,18 +1264,18 @@ class GreenScreen(BaseScreen):
         self.refresh_button.clicked.connect(self._on_refresh_clicked)
         control_layout.addWidget(self.refresh_button)
 
-        self.add_content(control_row)
+        scroll_layout.addWidget(control_row)
 
         self.status_label = QLabel("Link a repository to generate test sets.")
         self.status_label.setStyleSheet(f"background-color: transparent; font-size: 12px; color: {COLOR_TEXT_SECONDARY};")
         self.status_label.setAlignment(Qt.AlignLeft)
-        self.add_content(self.status_label)
+        scroll_layout.addWidget(self.status_label)
 
         self.files_label = QLabel("Saved test sets")
         self.files_label.setStyleSheet(f"background-color: transparent; font-size: 13px; font-weight: 600; color: {COLOR_TEXT_PRIMARY};")
         self.files_label.setAlignment(Qt.AlignLeft)
         self.files_label.setVisible(False)
-        self.add_content(self.files_label)
+        scroll_layout.addWidget(self.files_label)
 
         self.file_tree = QTreeWidget()
         self.file_tree.setHeaderHidden(True)
@@ -1166,7 +1283,7 @@ class GreenScreen(BaseScreen):
         self.file_tree.setSelectionMode(QTreeWidget.SingleSelection)
         self.file_tree.itemSelectionChanged.connect(self._on_file_selection_changed)
         self.file_tree.setVisible(False)
-        self.add_content(self.file_tree)
+        scroll_layout.addWidget(self.file_tree)
 
         self.file_preview = QTextEdit()
         self.file_preview.setReadOnly(True)
@@ -1174,7 +1291,7 @@ class GreenScreen(BaseScreen):
         self.file_preview.setMinimumHeight(260)
         self.file_preview.setPlaceholderText("Select a test set file to preview its contents.")
         self.file_preview.setVisible(False)
-        self.add_content(self.file_preview)
+        scroll_layout.addWidget(self.file_preview)
 
         # Progress bar + cancel button (hidden by default)
         progress_row = QWidget()
@@ -1234,9 +1351,11 @@ class GreenScreen(BaseScreen):
         self.cancel_gen_button.setVisible(False)
         progress_layout.addWidget(self.cancel_gen_button)
 
-        self.add_content(progress_row)
+        scroll_layout.addWidget(progress_row)
 
-        self.add_stretch()
+        scroll_layout.addStretch()
+        scroll_area.setWidget(scroll_container)
+        self.add_content(scroll_area)
 
     def set_repo_ready_state(self, enabled: bool):
         """Enable/disable generation buttons based on repo state."""
@@ -1358,29 +1477,64 @@ class GitHubScreen(BaseScreen):
         super().__init__()
         self.setStyleSheet(GRADIENT_BACKGROUND)
         self.repo_folder_path = None
-        
+
+        scroll_style = f"""
+            QScrollArea {{
+                background-color: transparent;
+                border: none;
+            }}
+            QScrollBar:vertical {{
+                background-color: {COLOR_SURFACE};
+                width: 8px;
+                border: none;
+            }}
+            QScrollBar::handle:vertical {{
+                background-color: {COLOR_SURFACE_LIGHT};
+                border-radius: 4px;
+                min-height: 20px;
+            }}
+            QScrollBar::handle:vertical:hover {{
+                background-color: {COLOR_ACCENT_BLUE};
+            }}
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
+                height: 0px;
+            }}
+        """
+
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        scroll_area.setStyleSheet(scroll_style)
+
+        scroll_container = QWidget()
+        scroll_container.setStyleSheet("background-color: transparent;")
+        scroll_layout = QVBoxLayout(scroll_container)
+        scroll_layout.setContentsMargins(40, 40, 40, 40)
+        scroll_layout.setSpacing(20)
+
         # Title
         title = QLabel("Link GitHub Repository")
         title.setStyleSheet(f"background-color: transparent; font-size: 32px; font-weight: bold; color: {COLOR_ACCENT_BLUE};")
         title.setAlignment(Qt.AlignCenter)
-        self.add_content(title)
-        
+        scroll_layout.addWidget(title)
+
         # Description
         description = QLabel("Enter your GitHub repository URL to link it to this project")
         description.setStyleSheet(f"background-color: transparent; font-size: 13px; color: {COLOR_TEXT_SECONDARY};")
         description.setAlignment(Qt.AlignCenter)
-        self.add_content(description)
-        
+        scroll_layout.addWidget(description)
+
         spacer = QLabel()
         spacer.setStyleSheet("background-color: transparent;")
-        self.add_content(spacer)
-        
+        scroll_layout.addWidget(spacer)
+
         # Input container
         input_container = QWidget()
         input_container.setStyleSheet("background-color: transparent;")
         input_layout = QHBoxLayout(input_container)
         input_layout.setSpacing(10)
-        
+
         # Text input for GitHub URL
         from PySide6.QtWidgets import QLineEdit
         self.repo_input = QLineEdit()
@@ -1405,7 +1559,7 @@ class GitHubScreen(BaseScreen):
         """)
         self.repo_input.setMinimumHeight(40)
         input_layout.addWidget(self.repo_input)
-        
+
         # Link button
         self.link_button = QPushButton("Link Repository")
         self.link_button.setStyleSheet(f"""
@@ -1433,16 +1587,16 @@ class GitHubScreen(BaseScreen):
         self.link_button.setFixedWidth(150)
         self.link_button.clicked.connect(self.on_link_clicked)
         input_layout.addWidget(self.link_button)
-        
-        self.add_content(input_container)
-        
+
+        scroll_layout.addWidget(input_container)
+
         # Progress bar (hidden by default)
         progress_container = QWidget()
         progress_container.setStyleSheet("background-color: transparent;")
         progress_layout = QHBoxLayout(progress_container)
         progress_layout.setSpacing(10)
         progress_layout.setContentsMargins(0, 0, 0, 0)
-        
+
         self.progress_bar = QProgressBar()
         self.progress_bar.setStyleSheet(f"""
             QProgressBar {{
@@ -1460,7 +1614,7 @@ class GitHubScreen(BaseScreen):
         self.progress_bar.setVisible(False)
         self.progress_bar.setMinimumHeight(25)
         progress_layout.addWidget(self.progress_bar)
-        
+
         self.cancel_button = QPushButton("Cancel")
         self.cancel_button.setStyleSheet(f"""
             QPushButton {{
@@ -1489,24 +1643,24 @@ class GitHubScreen(BaseScreen):
         self.cancel_button.setVisible(False)
         self.cancel_button.clicked.connect(self.on_cancel_clicked)
         progress_layout.addWidget(self.cancel_button)
-        
-        self.add_content(progress_container)
-        
+
+        scroll_layout.addWidget(progress_container)
+
         # Status label
         self.status_label = QLabel()
         self.status_label.setStyleSheet(f"background-color: transparent; font-size: 11px; color: {COLOR_TEXT_SECONDARY};")
         self.status_label.setAlignment(Qt.AlignCenter)
-        self.add_content(self.status_label)
-        
+        scroll_layout.addWidget(self.status_label)
+
         # Unlink button container (hidden by default)
         unlink_container = QWidget()
         unlink_container.setStyleSheet("background-color: transparent;")
         unlink_layout = QHBoxLayout(unlink_container)
         unlink_layout.setSpacing(10)
         unlink_layout.setContentsMargins(0, 0, 0, 0)
-        
+
         unlink_layout.addStretch()
-        
+
         self.unlink_repo_button = QPushButton("✕ Unlink Repository")
         self.unlink_repo_button.setStyleSheet(f"""
             QPushButton {{
@@ -1533,18 +1687,18 @@ class GitHubScreen(BaseScreen):
         self.unlink_repo_button.setCursor(Qt.PointingHandCursor)
         self.unlink_repo_button.setVisible(False)
         unlink_layout.addWidget(self.unlink_repo_button)
-        
+
         unlink_layout.addStretch()
-        
-        self.add_content(unlink_container)
-        
+
+        scroll_layout.addWidget(unlink_container)
+
         # File tree section (hidden by default)
         self.tree_section_label = QLabel("Repository Structure")
         self.tree_section_label.setStyleSheet(f"background-color: transparent; font-size: 12px; font-weight: 600; color: {COLOR_TEXT_PRIMARY};")
         self.tree_section_label.setAlignment(Qt.AlignLeft)
         self.tree_section_label.setVisible(False)
-        self.add_content(self.tree_section_label)
-        
+        scroll_layout.addWidget(self.tree_section_label)
+
         # Tree view in a scrollable area
         self.tree_scroll = QScrollArea()
         self.tree_scroll.setStyleSheet(f"""
@@ -1569,7 +1723,7 @@ class GitHubScreen(BaseScreen):
         self.tree_scroll.setWidgetResizable(True)
         self.tree_scroll.setMaximumHeight(500)
         self.tree_scroll.setVisible(False)
-        
+
         self.tree_text = QLabel()
         self.tree_text.setStyleSheet(f"""
             QLabel {{
@@ -1583,10 +1737,12 @@ class GitHubScreen(BaseScreen):
         self.tree_text.setAlignment(Qt.AlignTop | Qt.AlignLeft)
         self.tree_text.setWordWrap(False)
         self.tree_scroll.setWidget(self.tree_text)
-        
-        self.add_content(self.tree_scroll)
-        
-        self.add_stretch()
+
+        scroll_layout.addWidget(self.tree_scroll)
+
+        scroll_layout.addStretch()
+        scroll_area.setWidget(scroll_container)
+        self.add_content(scroll_area)
     
     def on_link_clicked(self):
         """Handle the link repository button click."""
