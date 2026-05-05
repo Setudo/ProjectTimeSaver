@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from aihandler import generate_with_llama, llama_available, read_text_safe
+import config
 README_CANDIDATES = ["README.md", "README.rst", "README.txt", "README"]
 COMMON_TEXT_EXTENSIONS = {".md", ".rst", ".txt", ".py", ".js", ".json", ".yaml", ".yml", ".ini", ".cfg", ".toml"}
 ENTRY_POINT_NAMES = {
@@ -204,7 +205,7 @@ def generate_repo_overview(repo_folder_path: str, repo_url: Optional[str] = None
 
     prompt = _build_prompt(repo_folder_path, repo_url)
     if llama_available():
-        result = generate_with_llama(prompt)
+        result = generate_with_llama(prompt, max_tokens=config.OVERVIEW_MAX_TOKENS)
         if result:
             return result
 
@@ -241,7 +242,7 @@ def generate_file_overview(file_path: str) -> str:
             "Write the structured overview now. Be specific — reference actual function names, "
             "classes, and variable names where relevant.",
         ])
-        result = generate_with_llama(prompt)
+        result = generate_with_llama(prompt, max_tokens=config.OVERVIEW_MAX_TOKENS)
         if result:
             return result
         else:

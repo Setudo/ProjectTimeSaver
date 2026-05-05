@@ -7,8 +7,11 @@ CONFIG_PATH = Path(__file__).parent / "config.toml"
 
 DEFAULT_CONFIG = {
     "ai": {
-        "max_tokens": 1024,
-        "temperature": 0.4
+        "max_tokens": 4096,
+        "temperature": 0.4,
+        "overview_max_tokens": 4096,
+        "explain_max_tokens": 4096,
+        "test_max_tokens": 4096,
     },
     "repo": {
         "max_download_size_mb": 200
@@ -42,9 +45,13 @@ def save_config(config):
         toml.dump(normalized, f)
 
     global _config, MAX_TOKENS, TEMPERATURE, MAX_REPO_SIZE_BYTES
+    global OVERVIEW_MAX_TOKENS, EXPLAIN_MAX_TOKENS, TEST_MAX_TOKENS
     _config = normalized
     MAX_TOKENS = _config["ai"]["max_tokens"]
     TEMPERATURE = _config["ai"]["temperature"]
+    OVERVIEW_MAX_TOKENS = _config["ai"]["overview_max_tokens"]
+    EXPLAIN_MAX_TOKENS = _config["ai"]["explain_max_tokens"]
+    TEST_MAX_TOKENS = _config["ai"]["test_max_tokens"]
     MAX_REPO_SIZE_BYTES = _config["repo"]["max_download_size_mb"] * 1024 * 1024
 
 
@@ -64,6 +71,9 @@ _config = load_config()
 # Expose clean variables
 MAX_TOKENS = _config["ai"]["max_tokens"]
 TEMPERATURE = _config["ai"]["temperature"]
+OVERVIEW_MAX_TOKENS = _config["ai"]["overview_max_tokens"]
+EXPLAIN_MAX_TOKENS = _config["ai"]["explain_max_tokens"]
+TEST_MAX_TOKENS = _config["ai"]["test_max_tokens"]
 
 MAX_REPO_SIZE_BYTES = (
     _config["repo"]["max_download_size_mb"] * 1024 * 1024

@@ -1,6 +1,9 @@
 [ai]
 max_tokens = 4096
+overview_max_tokens = 1024
+explain_max_tokens = 2048
+test_max_tokens = 4096
 temperature = 0.0
 
 [repo]
-max_download_size_mb = 200
+max_download_size_mb = 300

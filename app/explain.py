@@ -8,6 +8,7 @@ import re
 
 from aihandler import generate_with_llama, llama_available, read_text_safe
 from overview import SKIP_DIRS
+import config
 
 MAX_SNIPPETS = 5
 
@@ -254,7 +255,7 @@ def generate_code_explanation(file_path: str, repo_root: str = None) -> str:
 
     if llama_available():
         prompt = _build_code_explanation_prompt(path, content, dependency_snippets)
-        result = generate_with_llama(prompt)
+        result = generate_with_llama(prompt, max_tokens=config.EXPLAIN_MAX_TOKENS)
         if result:
             return result
 
@@ -297,7 +298,7 @@ def annotate_code_file(file_path: str, repo_root: str = None) -> str:
 
     if llama_available():
         prompt = _build_annotation_prompt(path, content)
-        result = generate_with_llama(prompt)
+        result = generate_with_llama(prompt, max_tokens=config.EXPLAIN_MAX_TOKENS)
         if result:
             return result
 

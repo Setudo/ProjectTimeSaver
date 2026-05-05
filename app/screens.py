@@ -553,6 +553,42 @@ class SettingsScreen(BaseScreen):
         self.load_settings()
 
     def init_settings_ui(self):
+        # Shared styles for form labels and input widgets
+        label_style = f"color: {COLOR_TEXT_PRIMARY}; font-size: 13px; font-family: 'Courier New', monospace; background-color: transparent;"
+        spinbox_style = f"""
+            QSpinBox, QDoubleSpinBox {{
+                background-color: {COLOR_SURFACE_LIGHT};
+                color: {COLOR_TEXT_PRIMARY};
+                border: 1px solid {COLOR_SURFACE_LIGHT};
+                border-radius: 0px;
+                padding: 4px 8px;
+                font-size: 13px;
+                font-family: 'Courier New', monospace;
+                min-width: 120px;
+            }}
+            QSpinBox:focus, QDoubleSpinBox:focus {{
+                border: 1px solid {COLOR_ACCENT_BLUE};
+            }}
+            QSpinBox::up-button, QDoubleSpinBox::up-button,
+            QSpinBox::down-button, QDoubleSpinBox::down-button {{
+                background-color: {COLOR_SURFACE};
+                border: none;
+                width: 18px;
+            }}
+            QSpinBox::up-arrow, QDoubleSpinBox::up-arrow {{
+                image: none;
+                border-left: 4px solid transparent;
+                border-right: 4px solid transparent;
+                border-bottom: 5px solid {COLOR_TEXT_PRIMARY};
+            }}
+            QSpinBox::down-arrow, QDoubleSpinBox::down-arrow {{
+                image: none;
+                border-left: 4px solid transparent;
+                border-right: 4px solid transparent;
+                border-top: 5px solid {COLOR_TEXT_PRIMARY};
+            }}
+        """
+
         title = QLabel("Settings")
         title.setStyleSheet(f"background-color: transparent; font-size: 32px; font-weight: bold; color: {COLOR_TEXT_SECONDARY};")
         title.setFont(QFont("Courier New", 28, QFont.Bold))
@@ -560,38 +596,95 @@ class SettingsScreen(BaseScreen):
         self.add_content(title)
 
         description = QLabel("Update configuration values stored in config.toml.")
-        description.setStyleSheet(f"background-color: transparent; font-size: 14px; color: {COLOR_TEXT_SECONDARY}; text-align: center;")
+        description.setStyleSheet(f"background-color: transparent; font-size: 14px; color: {COLOR_TEXT_SECONDARY};")
         description.setAlignment(Qt.AlignCenter)
         self.add_content(description)
 
+        # --- Scrollable form area ---
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        scroll_area.setStyleSheet(f"""
+            QScrollArea {{
+                background-color: transparent;
+                border: none;
+            }}
+            QScrollBar:vertical {{
+                background-color: {COLOR_SURFACE};
+                width: 8px;
+                border: none;
+            }}
+            QScrollBar::handle:vertical {{
+                background-color: {COLOR_SURFACE_LIGHT};
+                border-radius: 4px;
+                min-height: 20px;
+            }}
+            QScrollBar::handle:vertical:hover {{
+                background-color: {COLOR_ACCENT_BLUE};
+            }}
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
+                height: 0px;
+            }}
+        """)
+
         form_container = QWidget()
-        form_container.setStyleSheet(f"background-color: {COLOR_SURFACE}; border: 1px solid {COLOR_SURFACE_LIGHT}; padding: 20px;")
+        form_container.setStyleSheet(f"background-color: {COLOR_SURFACE}; border: 1px solid {COLOR_SURFACE_LIGHT};")
         form_layout = QFormLayout(form_container)
         form_layout.setLabelAlignment(Qt.AlignLeft)
         form_layout.setFormAlignment(Qt.AlignLeft | Qt.AlignTop)
-        form_layout.setHorizontalSpacing(18)
-        form_layout.setVerticalSpacing(16)
+        form_layout.setHorizontalSpacing(24)
+        form_layout.setVerticalSpacing(18)
+        form_layout.setContentsMargins(24, 24, 24, 24)
+
+        def make_label(text):
+            lbl = QLabel(text)
+            lbl.setStyleSheet(label_style)
+            return lbl
 
         self.max_tokens_input = QSpinBox()
-        self.max_tokens_input.setRange(1, 10000)
-        self.max_tokens_input.setToolTip("Max tokens used by the AI completion engine.")
-        form_layout.addRow("AI max tokens:", self.max_tokens_input)
+        self.max_tokens_input.setRange(1, 32768)
+        self.max_tokens_input.setStyleSheet(spinbox_style)
+        self.max_tokens_input.setToolTip("Global max tokens fallback for the AI completion engine.")
+        form_layout.addRow(make_label("AI max tokens (global):"), self.max_tokens_input)
+
+        self.overview_max_tokens_input = QSpinBox()
+        self.overview_max_tokens_input.setRange(1, 32768)
+        self.overview_max_tokens_input.setStyleSheet(spinbox_style)
+        self.overview_max_tokens_input.setToolTip("Max tokens used when generating repository/file overviews.")
+        form_layout.addRow(make_label("Overview max tokens:"), self.overview_max_tokens_input)
+
+        self.explain_max_tokens_input = QSpinBox()
+        self.explain_max_tokens_input.setRange(1, 32768)
+        self.explain_max_tokens_input.setStyleSheet(spinbox_style)
+        self.explain_max_tokens_input.setToolTip("Max tokens used when generating code explanations and annotations.")
+        form_layout.addRow(make_label("Code explanation max tokens:"), self.explain_max_tokens_input)
+
+        self.test_max_tokens_input = QSpinBox()
+        self.test_max_tokens_input.setRange(1, 32768)
+        self.test_max_tokens_input.setStyleSheet(spinbox_style)
+        self.test_max_tokens_input.setToolTip("Max tokens used when generating test scenarios and code templates.")
+        form_layout.addRow(make_label("Test creation max tokens:"), self.test_max_tokens_input)
 
         self.temperature_input = QDoubleSpinBox()
         self.temperature_input.setDecimals(2)
         self.temperature_input.setRange(0.0, 2.0)
         self.temperature_input.setSingleStep(0.05)
+        self.temperature_input.setStyleSheet(spinbox_style)
         self.temperature_input.setToolTip("Temperature for AI completion sampling.")
-        form_layout.addRow("AI temperature:", self.temperature_input)
+        form_layout.addRow(make_label("AI temperature:"), self.temperature_input)
 
         self.max_download_size_input = QSpinBox()
         self.max_download_size_input.setRange(1, 4096)
         self.max_download_size_input.setSuffix(" MB")
+        self.max_download_size_input.setStyleSheet(spinbox_style)
         self.max_download_size_input.setToolTip("Maximum repository download size.")
-        form_layout.addRow("Max download size:", self.max_download_size_input)
+        form_layout.addRow(make_label("Max download size:"), self.max_download_size_input)
 
-        self.add_content(form_container)
+        scroll_area.setWidget(form_container)
+        self.add_content(scroll_area)
 
+        # --- Save button row (always visible, outside scroll area) ---
         button_row = QWidget()
         button_row.setStyleSheet("background-color: transparent;")
         button_layout = QHBoxLayout(button_row)
@@ -630,12 +723,14 @@ class SettingsScreen(BaseScreen):
         button_layout.addWidget(self.status_label)
 
         self.add_content(button_row)
-        self.add_stretch()
 
     def load_settings(self):
         try:
             config_values = load_config()
             self.max_tokens_input.setValue(int(config_values["ai"]["max_tokens"]))
+            self.overview_max_tokens_input.setValue(int(config_values["ai"]["overview_max_tokens"]))
+            self.explain_max_tokens_input.setValue(int(config_values["ai"]["explain_max_tokens"]))
+            self.test_max_tokens_input.setValue(int(config_values["ai"]["test_max_tokens"]))
             self.temperature_input.setValue(float(config_values["ai"]["temperature"]))
             self.max_download_size_input.setValue(int(config_values["repo"]["max_download_size_mb"]))
             self.set_status_text("Loaded settings from config.toml.")
@@ -647,6 +742,9 @@ class SettingsScreen(BaseScreen):
             new_settings = {
                 "ai": {
                     "max_tokens": int(self.max_tokens_input.value()),
+                    "overview_max_tokens": int(self.overview_max_tokens_input.value()),
+                    "explain_max_tokens": int(self.explain_max_tokens_input.value()),
+                    "test_max_tokens": int(self.test_max_tokens_input.value()),
                     "temperature": float(self.temperature_input.value()),
                 },
                 "repo": {

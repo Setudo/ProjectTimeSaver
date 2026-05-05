@@ -6,6 +6,7 @@ from typing import List, Dict, Optional
 
 from aihandler import generate_with_llama, llama_available, read_text_safe
 from overview import _collect_repo_text, _compute_repo_metadata
+import config
 
 
 def _create_test_scenario_prompt(repo_text: str, repo_metadata: Dict[str, str]) -> str:
@@ -80,7 +81,7 @@ def generate_test_scenarios(repo_folder_path: str) -> Optional[str]:
         repo_metadata = _compute_repo_metadata(repo_folder_path)
         
         prompt = _create_test_scenario_prompt(repo_text, repo_metadata)
-        result = generate_with_llama(prompt)
+        result = generate_with_llama(prompt, max_tokens=config.TEST_MAX_TOKENS)
         
         return result
     except Exception as e:
@@ -101,7 +102,7 @@ def generate_code_templates(repo_folder_path: str) -> Optional[str]:
         repo_metadata = _compute_repo_metadata(repo_folder_path)
         
         prompt = _create_code_template_prompt(repo_text, repo_metadata)
-        result = generate_with_llama(prompt)
+        result = generate_with_llama(prompt, max_tokens=config.TEST_MAX_TOKENS)
         
         return result
     except Exception as e:

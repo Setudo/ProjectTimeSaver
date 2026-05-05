@@ -49,14 +49,17 @@ def llama_available() -> bool:
     return bool(find_local_model_path())
 
 
-def generate_with_llama(prompt: str) -> Optional[str]:
+def generate_with_llama(prompt: str, max_tokens: Optional[int] = None) -> Optional[str]:
     model_path = find_local_model_path()
     if not model_path or not _LLAMA_CPP_AVAILABLE:
         return None
 
+    # Use the provided max_tokens, falling back to the global config value
+    effective_max_tokens = max_tokens if max_tokens is not None else config.MAX_TOKENS
+
     try:
         llama = Llama(model_path=model_path, n_ctx=4096, verbose=False)
-        response = llama.create_completion(prompt=prompt, max_tokens=config.MAX_TOKENS, temperature=config.TEMPERATURE)
+        response = llama.create_completion(prompt=prompt, max_tokens=effective_max_tokens, temperature=config.TEMPERATURE)
         print("\nResponse:",response,"\n") # Debugging output
         text = response.get("choices", [{}])[0].get("text")
         print("\nGenerated Text:",text,"\n") # Debugging output
