@@ -3,7 +3,7 @@
 import toml
 from pathlib import Path
 
-CONFIG_PATH = Path("config.toml")
+CONFIG_PATH = Path(__file__).parent / "config.toml"
 
 DEFAULT_CONFIG = {
     "ai": {
@@ -15,14 +15,37 @@ DEFAULT_CONFIG = {
     }
 }
 
+
+def normalize_keys(config):
+    if not isinstance(config, dict):
+        return config
+    normalized = {}
+    for key, value in config.items():
+        normalized[key.lower()] = normalize_keys(value) if isinstance(value, dict) else value
+    return normalized
+
+
 def load_config():
     if not CONFIG_PATH.exists():
-        return DEFAULT_CONFIG
+        return DEFAULT_CONFIG.copy()
 
-    with open(CONFIG_PATH, "rb") as f:
+    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
         user_config = toml.load(f)
 
+    user_config = normalize_keys(user_config)
     return merge_dicts(DEFAULT_CONFIG, user_config)
+
+
+def save_config(config):
+    normalized = normalize_keys(config)
+    with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+        toml.dump(normalized, f)
+
+    global _config, MAX_TOKENS, TEMPERATURE, MAX_REPO_SIZE_BYTES
+    _config = normalized
+    MAX_TOKENS = _config["ai"]["max_tokens"]
+    TEMPERATURE = _config["ai"]["temperature"]
+    MAX_REPO_SIZE_BYTES = _config["repo"]["max_download_size_mb"] * 1024 * 1024
 
 
 def merge_dicts(default, override):

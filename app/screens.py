@@ -1,9 +1,10 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QProgressBar, QScrollArea, QTextEdit, QTreeWidget, QTreeWidgetItem, QSplitter
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QProgressBar, QScrollArea, QTextEdit, QTreeWidget, QTreeWidgetItem, QSplitter, QFormLayout, QSpinBox, QDoubleSpinBox
 from PySide6.QtCore import Qt, Signal, QUrl
 from PySide6.QtGui import QFont
 from pathlib import Path
 import os
 from explain import collect_code_file_paths
+from config import load_config, save_config
 
 # Modern dark theme with programmer-focused design
 GRADIENT_BACKGROUND = """
@@ -460,6 +461,124 @@ class BlueScreen(BaseScreen):
         else:
             self.overview_button.setText("Generate repo overview")
 
+
+class SettingsScreen(BaseScreen):
+    """Screen for editing config.toml values."""
+
+    def __init__(self):
+        super().__init__()
+        self.setStyleSheet(GRADIENT_BACKGROUND)
+        self.init_settings_ui()
+        self.load_settings()
+
+    def init_settings_ui(self):
+        title = QLabel("Settings")
+        title.setStyleSheet(f"background-color: transparent; font-size: 32px; font-weight: bold; color: {COLOR_TEXT_SECONDARY};")
+        title.setFont(QFont("Courier New", 28, QFont.Bold))
+        title.setAlignment(Qt.AlignCenter)
+        self.add_content(title)
+
+        description = QLabel("Update configuration values stored in config.toml.")
+        description.setStyleSheet(f"background-color: transparent; font-size: 14px; color: {COLOR_TEXT_SECONDARY}; text-align: center;")
+        description.setAlignment(Qt.AlignCenter)
+        self.add_content(description)
+
+        form_container = QWidget()
+        form_container.setStyleSheet(f"background-color: {COLOR_SURFACE}; border: 1px solid {COLOR_SURFACE_LIGHT}; padding: 20px;")
+        form_layout = QFormLayout(form_container)
+        form_layout.setLabelAlignment(Qt.AlignLeft)
+        form_layout.setFormAlignment(Qt.AlignLeft | Qt.AlignTop)
+        form_layout.setHorizontalSpacing(18)
+        form_layout.setVerticalSpacing(16)
+
+        self.max_tokens_input = QSpinBox()
+        self.max_tokens_input.setRange(1, 10000)
+        self.max_tokens_input.setToolTip("Max tokens used by the AI completion engine.")
+        form_layout.addRow("AI max tokens:", self.max_tokens_input)
+
+        self.temperature_input = QDoubleSpinBox()
+        self.temperature_input.setDecimals(2)
+        self.temperature_input.setRange(0.0, 2.0)
+        self.temperature_input.setSingleStep(0.05)
+        self.temperature_input.setToolTip("Temperature for AI completion sampling.")
+        form_layout.addRow("AI temperature:", self.temperature_input)
+
+        self.max_download_size_input = QSpinBox()
+        self.max_download_size_input.setRange(1, 4096)
+        self.max_download_size_input.setSuffix(" MB")
+        self.max_download_size_input.setToolTip("Maximum repository download size.")
+        form_layout.addRow("Max download size:", self.max_download_size_input)
+
+        self.add_content(form_container)
+
+        button_row = QWidget()
+        button_row.setStyleSheet("background-color: transparent;")
+        button_layout = QHBoxLayout(button_row)
+        button_layout.setContentsMargins(0, 0, 0, 0)
+        button_layout.setSpacing(12)
+
+        self.save_button = QPushButton("Save settings")
+        self.save_button.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {COLOR_SURFACE};
+                color: {COLOR_TEXT_PRIMARY};
+                border: 1px solid {COLOR_SURFACE_LIGHT};
+                border-radius: 0px;
+                padding: 10px 16px;
+                font-size: 12px;
+                font-weight: 600;
+                font-family: 'Courier New', monospace;
+            }}
+            QPushButton:hover {{
+                background-color: {COLOR_SURFACE_LIGHT};
+                border: 1px solid {COLOR_ACCENT_BLUE};
+                color: {COLOR_ACCENT_BLUE};
+            }}
+            QPushButton:pressed {{
+                background-color: {COLOR_ACCENT_GREEN};
+                color: #0f1419;
+            }}
+        """)
+        self.save_button.setCursor(Qt.PointingHandCursor)
+        self.save_button.clicked.connect(self._on_save_clicked)
+        button_layout.addWidget(self.save_button)
+
+        self.status_label = QLabel("")
+        self.status_label.setStyleSheet(f"background-color: transparent; color: {COLOR_TEXT_SECONDARY}; font-size: 12px;")
+        self.status_label.setAlignment(Qt.AlignLeft)
+        button_layout.addWidget(self.status_label)
+
+        self.add_content(button_row)
+        self.add_stretch()
+
+    def load_settings(self):
+        try:
+            config_values = load_config()
+            self.max_tokens_input.setValue(int(config_values["ai"]["max_tokens"]))
+            self.temperature_input.setValue(float(config_values["ai"]["temperature"]))
+            self.max_download_size_input.setValue(int(config_values["repo"]["max_download_size_mb"]))
+            self.set_status_text("Loaded settings from config.toml.")
+        except Exception as e:
+            self.set_status_text(f"Unable to load settings: {e}")
+
+    def _on_save_clicked(self):
+        try:
+            new_settings = {
+                "ai": {
+                    "max_tokens": int(self.max_tokens_input.value()),
+                    "temperature": float(self.temperature_input.value()),
+                },
+                "repo": {
+                    "max_download_size_mb": int(self.max_download_size_input.value()),
+                },
+            }
+            save_config(new_settings)
+            self.set_status_text("Settings saved. Restart may be required for all modules.")
+        except Exception as e:
+            self.set_status_text(f"Failed to save settings: {e}")
+
+    def set_status_text(self, text: str):
+        self.status_label.setText(text)
 
 
 class RedScreen(BaseScreen):

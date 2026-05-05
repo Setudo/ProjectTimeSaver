@@ -4,7 +4,7 @@ import shutil
 from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QStackedWidget, QLabel, QSplitter, QSizePolicy
 from PySide6.QtCore import Qt, QThread, Signal, QObject, QTimer
 from PySide6.QtGui import QFontDatabase, QFont # Used to change fonts (as long as they are downloaded)
-from screens import BlueScreen, RedScreen, GreenScreen, GitHubScreen
+from screens import BlueScreen, RedScreen, GreenScreen, SettingsScreen, GitHubScreen
 import repo_puller
 from overview import generate_repo_overview, generate_file_overview
 from explain import collect_code_file_paths, generate_code_explanation, annotate_code_file, save_annotated_file
@@ -230,6 +230,7 @@ class MainWindow(QMainWindow):
         self.blue_screen = BlueScreen()
         self.red_screen = RedScreen()
         self.green_screen = GreenScreen()
+        self.settings_screen = SettingsScreen()
         self.github_screen = GitHubScreen()
 
         self.blue_screen.repo_overview_requested.connect(self.on_generate_repo_overview)
@@ -242,12 +243,14 @@ class MainWindow(QMainWindow):
         self.stacked.addWidget(self.blue_screen)
         self.stacked.addWidget(self.red_screen)
         self.stacked.addWidget(self.green_screen)
+        self.stacked.addWidget(self.settings_screen)
         self.stacked.addWidget(self.github_screen)
 
         # Connect back signals
         self.blue_screen.back_pressed.connect(self.back_to_main)
         self.red_screen.back_pressed.connect(self.back_to_main)
         self.green_screen.back_pressed.connect(self.back_to_main)
+        self.settings_screen.back_pressed.connect(self.back_to_main)
         self.github_screen.back_pressed.connect(self.back_to_main)
 
         # Connect GitHub linking signals
@@ -285,7 +288,8 @@ class MainWindow(QMainWindow):
         buttons_data = [
             ("Repo Overview", 0, COLOR_ACCENT_DARK_BLUE),
             ("Code Annotation", 1, COLOR_ACCENT_RED),
-            ("FIX #3", 2, COLOR_SUCCESS),
+            ("Test Creator", 2, COLOR_SUCCESS),
+            ("Settings", 3, COLOR_TEXT_SECONDARY),
         ]
         for label, index, accent_color in buttons_data:
             btn = QPushButton(label)
@@ -350,7 +354,7 @@ class MainWindow(QMainWindow):
             }}
         """)
         self.sidebar_github_button.setCursor(Qt.PointingHandCursor)
-        self.sidebar_github_button.clicked.connect(lambda: self.navigate_to_screen(3))
+        self.sidebar_github_button.clicked.connect(lambda: self.navigate_to_screen(4))
 
         self.sidebar_unlink_button = QPushButton("✕")
         self.sidebar_unlink_button.setFixedSize(40, 40)
@@ -460,7 +464,9 @@ class MainWindow(QMainWindow):
         self.blue_screen.set_repo_info(self.current_repo_url)
         self.red_screen.set_repo_info(self.current_repo_url)
         self.green_screen.set_repo_info(self.current_repo_url)
+        self.settings_screen.set_repo_info(self.current_repo_url)
         self.github_screen.set_repo_info(self.current_repo_url)
+        self.settings_screen.load_settings()
         repo_ready = bool(repo_folder and os.path.isdir(repo_folder))
         self.blue_screen.set_repo_ready_state(repo_ready)
         self.red_screen.set_repo_ready_state(repo_ready)
@@ -475,8 +481,10 @@ class MainWindow(QMainWindow):
         return os.path.join(self.repos_folder, repo_name)
 
     def navigate_to_screen(self, index):
-        """Navigate to a specific screen (0-2 for detail screens, 3 for github)."""
+        """Navigate to a specific screen (0-3 for detail screens, 4 for GitHub)."""
         self._update_all_screens_repo_info()
+        if index == 3:
+            self.settings_screen.load_settings()
         self.stacked.setCurrentIndex(index + 1)
 
     def back_to_main(self):

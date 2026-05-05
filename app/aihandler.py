@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 from typing import Optional
 
-from config import MAX_TOKENS, TEMPERATURE
+import config
 
 MODEL_PATH_ENV = "LLAMA_CPP_MODEL_PATH"
 
@@ -56,7 +56,7 @@ def generate_with_llama(prompt: str) -> Optional[str]:
 
     try:
         llama = Llama(model_path=model_path, n_ctx=4096, verbose=False)
-        response = llama.create_completion(prompt=prompt, max_tokens=MAX_TOKENS, temperature=TEMPERATURE)
+        response = llama.create_completion(prompt=prompt, max_tokens=config.MAX_TOKENS, temperature=config.TEMPERATURE)
         text = response.get("choices", [{}])[0].get("text")
         return text.strip() if isinstance(text, str) else None
     except Exception as e:

@@ -25,7 +25,7 @@ try:
 except Exception:  # pragma: no cover - requests may not be installed in dev env
     requests = None
 
-from config import MAX_REPO_SIZE_BYTES  # Configurable max download size (in bytes)
+import config
 
 
 GITHUB_API_BASE = "https://api.github.com/repos"
@@ -228,7 +228,7 @@ def _download_zip_and_extract(owner: str, repo: str, branch: str, dest: Path, ma
         return False, f"Failed to download archive: {str(e)}"
 
 
-def download_repo(repo_url: str, destination_folder: str, max_bytes: int = MAX_REPO_SIZE_BYTES, progress_callback=None) -> Tuple[bool, str]:
+def download_repo(repo_url: str, destination_folder: str, max_bytes: int = None, progress_callback=None) -> Tuple[bool, str]:
     """Download a GitHub repository into `destination_folder`.
 
     Returns (success, message).
@@ -251,6 +251,9 @@ def download_repo(repo_url: str, destination_folder: str, max_bytes: int = MAX_R
     # Try to get metadata (optional)
     metadata = _get_github_metadata(owner, repo)
     default_branch = None
+    if max_bytes is None:
+        max_bytes = config.MAX_REPO_SIZE_BYTES
+
     if metadata:
         default_branch = metadata.get("default_branch")
         api_size_kb = metadata.get("size")
