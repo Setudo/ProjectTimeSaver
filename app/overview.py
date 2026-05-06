@@ -246,7 +246,7 @@ def generate_file_overview(file_path: str) -> str:
         if result:
             return result
         else:
-            print("AI GENERATION FAILED")
+            print("AI GENERATION FAILED") # Debugging output to indicate generation failure
     else:
         print("LLAMA.CPP NOT AVAILABLE - FALLING BACK TO HEURISTIC OVERVIEW")
 

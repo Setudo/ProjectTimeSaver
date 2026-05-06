@@ -50,6 +50,7 @@ def llama_available() -> bool:
 
 
 def generate_with_llama(prompt: str, max_tokens: Optional[int] = None) -> Optional[str]:
+    print("Generating - max tokens: ", max_tokens) # Debugging output to verify max_tokens value
     model_path = find_local_model_path()
     if not model_path or not _LLAMA_CPP_AVAILABLE:
         return None

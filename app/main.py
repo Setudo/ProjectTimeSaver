@@ -524,7 +524,7 @@ class MainWindow(QMainWindow):
             v = progress_state["value"]
             # Ease toward 90% asymptotically: each tick adds a smaller increment
             if v < 90:
-                increment = max(1, int((90 - v) * 0.06))
+                increment = max(1, int((90 - v) * 0.02))  # Increment decreases as we approach 90%
                 v = min(90, v + increment)
                 progress_state["value"] = v
                 screen.update_generation_progress(v)
@@ -1047,7 +1047,7 @@ class MainWindow(QMainWindow):
         
         try:
             self.green_screen.update_generation_progress(100)
-            
+            print(ai_text) # Debug print to verify AI output is received correctly
             if not success:
                 self.green_screen.set_status_text("Test generation failed.")
                 self.logger.warning("Test generation failed")

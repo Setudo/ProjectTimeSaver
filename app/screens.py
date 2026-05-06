@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QProgressBar, QScrollArea, QTextEdit, QTreeWidget, QTreeWidgetItem, QSplitter, QFormLayout, QSpinBox, QDoubleSpinBox, QInputDialog
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QProgressBar, QScrollArea, QTextEdit, QTreeWidget, QTreeWidgetItem, QSplitter, QFormLayout, QSpinBox, QDoubleSpinBox, QInputDialog, QTableWidget, QTableWidgetItem, QHeaderView
 from PySide6.QtCore import Qt, Signal, QUrl
 from PySide6.QtGui import QFont
 from pathlib import Path
@@ -1285,12 +1285,71 @@ class GreenScreen(BaseScreen):
         self.file_tree.setVisible(False)
         scroll_layout.addWidget(self.file_tree)
 
-        self.file_preview = QTextEdit()
-        self.file_preview.setReadOnly(True)
-        self.file_preview.setStyleSheet(f"background-color: {COLOR_SURFACE}; color: {COLOR_TEXT_PRIMARY}; border: 1px solid {COLOR_SURFACE_LIGHT}; font-family: 'Courier New', monospace; font-size: 10px;")
+        self.file_preview = QTableWidget()
+        self.file_preview.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.file_preview.setSelectionBehavior(QTableWidget.SelectRows)
+        self.file_preview.setAlternatingRowColors(True)
         self.file_preview.setMinimumHeight(260)
-        self.file_preview.setPlaceholderText("Select a test set file to preview its contents.")
         self.file_preview.setVisible(False)
+        self.file_preview.horizontalHeader().setStretchLastSection(True)
+        self.file_preview.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+        self.file_preview.verticalHeader().setVisible(False)
+        self.file_preview.setStyleSheet(f"""
+            QTableWidget {{
+                background-color: {COLOR_SURFACE};
+                color: {COLOR_TEXT_PRIMARY};
+                border: 1px solid {COLOR_SURFACE_LIGHT};
+                font-family: 'Courier New', monospace;
+                font-size: 11px;
+                gridline-color: {COLOR_SURFACE_LIGHT};
+                alternate-background-color: {COLOR_SURFACE_LIGHT};
+            }}
+            QTableWidget::item {{
+                padding: 6px 10px;
+                border: none;
+            }}
+            QTableWidget::item:selected {{
+                background-color: {COLOR_ACCENT_DARK_BLUE};
+                color: {COLOR_TEXT_PRIMARY};
+            }}
+            QHeaderView::section {{
+                background-color: {COLOR_SURFACE_LIGHT};
+                color: {COLOR_ACCENT_BLUE};
+                border: none;
+                border-right: 1px solid {COLOR_SURFACE};
+                border-bottom: 1px solid {COLOR_SURFACE};
+                padding: 6px 10px;
+                font-family: 'Courier New', monospace;
+                font-size: 11px;
+                font-weight: bold;
+            }}
+            QScrollBar:vertical {{
+                background-color: {COLOR_SURFACE};
+                width: 8px;
+                border: none;
+            }}
+            QScrollBar::handle:vertical {{
+                background-color: {COLOR_SURFACE_LIGHT};
+                border-radius: 4px;
+                min-height: 20px;
+            }}
+            QScrollBar::handle:vertical:hover {{
+                background-color: {COLOR_ACCENT_BLUE};
+            }}
+            QScrollBar:horizontal {{
+                background-color: {COLOR_SURFACE};
+                height: 8px;
+                border: none;
+            }}
+            QScrollBar::handle:horizontal {{
+                background-color: {COLOR_SURFACE_LIGHT};
+                border-radius: 4px;
+                min-width: 20px;
+            }}
+            QScrollBar::handle:horizontal:hover {{
+                background-color: {COLOR_ACCENT_BLUE};
+            }}
+        """)
         scroll_layout.addWidget(self.file_preview)
 
         # Progress bar + cancel button (hidden by default)
@@ -1423,13 +1482,45 @@ class GreenScreen(BaseScreen):
         self._load_file_preview(file_path)
 
     def _load_file_preview(self, file_path: str):
-        """Load and display CSV file preview."""
+        """Load and display CSV file as a table."""
+        import csv as _csv
+        self.file_preview.clear()
+        self.file_preview.setRowCount(0)
+        self.file_preview.setColumnCount(0)
         try:
-            content = read_test_csv(file_path)
-            self.file_preview.setPlainText(content)
+            with open(file_path, 'r', encoding='utf-8', errors='ignore', newline='') as fh:
+                reader = _csv.reader(fh)
+                rows = list(reader)
+
+            if not rows:
+                self.file_preview.setVisible(False)
+                return
+
+            headers = rows[0]
+            data_rows = rows[1:]
+
+            self.file_preview.setColumnCount(len(headers))
+            self.file_preview.setHorizontalHeaderLabels(headers)
+            self.file_preview.setRowCount(len(data_rows))
+
+            for row_idx, row in enumerate(data_rows):
+                for col_idx, cell in enumerate(row):
+                    item = QTableWidgetItem(cell)
+                    item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                    # Wrap long text in cells
+                    item.setToolTip(cell)
+                    self.file_preview.setItem(row_idx, col_idx, item)
+
+            # Resize columns to content, but cap width so the table stays readable
+            self.file_preview.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+            self.file_preview.resizeRowsToContents()
             self.file_preview.setVisible(True)
         except Exception as exc:
-            self.file_preview.setPlainText(f"Unable to preview file: {exc}")
+            # Fall back to a single-cell error message
+            self.file_preview.setColumnCount(1)
+            self.file_preview.setHorizontalHeaderLabels(["Error"])
+            self.file_preview.setRowCount(1)
+            self.file_preview.setItem(0, 0, QTableWidgetItem(f"Unable to preview file: {exc}"))
             self.file_preview.setVisible(True)
 
     def _on_refresh_clicked(self):
