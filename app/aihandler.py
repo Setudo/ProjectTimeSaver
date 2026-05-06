@@ -2,6 +2,7 @@ import importlib
 import os
 from pathlib import Path
 from typing import Optional
+import time
 
 import config
 
@@ -19,10 +20,13 @@ except Exception:
 
 def find_local_model_path() -> Optional[str]:
     env_path = os.environ.get(MODEL_PATH_ENV)
+    print("ENV PATH:", env_path) # Debugging output to verify environment variable value
     if env_path:
         env_path = os.path.expanduser(env_path)
         if os.path.exists(env_path):
             return env_path
+        else:
+            print(f"Environment variable {MODEL_PATH_ENV} is set to '{env_path}', but the file does not exist.")
 
     search_dirs = [
         Path.cwd(),
@@ -38,7 +42,7 @@ def find_local_model_path() -> Optional[str]:
         for pattern in ["*.gguf", "*.bin"]:
             matches = list(base.glob(pattern))
             if matches:
-                return str(matches[0])
+                return str(matches[1]) # 0 means first file in models - change later to specify model in method call
 
     return None
 
@@ -52,6 +56,7 @@ def llama_available() -> bool:
 def generate_with_llama(prompt: str, max_tokens: Optional[int] = None) -> Optional[str]:
     print("Generating - max tokens: ", max_tokens) # Debugging output to verify max_tokens value
     model_path = find_local_model_path()
+    print("PATH:", model_path) # Debugging output to verify model path being used
     if not model_path or not _LLAMA_CPP_AVAILABLE:
         return None
 
@@ -70,7 +75,7 @@ def generate_with_llama(prompt: str, max_tokens: Optional[int] = None) -> Option
         return None
 
 
-def read_text_safe(path: Path, max_chars: int = 14000) -> str:
+def read_text_safe(path: Path, max_chars: int = 25000) -> str:
     try:
         return path.read_text(encoding="utf-8", errors="ignore")[:max_chars]
     except Exception:
