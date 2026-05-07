@@ -9,9 +9,11 @@ DEFAULT_CONFIG = {
     "ai": {
         "max_tokens": 4096,
         "temperature": 0.4,
+        "repeat_penalty": 1.15,
         "overview_max_tokens": 4096,
         "explain_max_tokens": 4096,
         "test_max_tokens": 4096,
+        "selected_model": "",
     },
     "repo": {
         "max_download_size_mb": 200
@@ -44,14 +46,16 @@ def save_config(config):
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
         toml.dump(normalized, f)
 
-    global _config, MAX_TOKENS, TEMPERATURE, MAX_REPO_SIZE_BYTES
-    global OVERVIEW_MAX_TOKENS, EXPLAIN_MAX_TOKENS, TEST_MAX_TOKENS
+    global _config, MAX_TOKENS, TEMPERATURE, REPEAT_PENALTY, MAX_REPO_SIZE_BYTES
+    global OVERVIEW_MAX_TOKENS, EXPLAIN_MAX_TOKENS, TEST_MAX_TOKENS, SELECTED_MODEL
     _config = normalized
     MAX_TOKENS = _config["ai"]["max_tokens"]
     TEMPERATURE = _config["ai"]["temperature"]
+    REPEAT_PENALTY = float(_config["ai"].get("repeat_penalty", 1.15))
     OVERVIEW_MAX_TOKENS = _config["ai"]["overview_max_tokens"]
     EXPLAIN_MAX_TOKENS = _config["ai"]["explain_max_tokens"]
     TEST_MAX_TOKENS = _config["ai"]["test_max_tokens"]
+    SELECTED_MODEL = _config["ai"].get("selected_model", "")
     MAX_REPO_SIZE_BYTES = _config["repo"]["max_download_size_mb"] * 1024 * 1024
 
 
@@ -71,9 +75,11 @@ _config = load_config()
 # Expose clean variables
 MAX_TOKENS = _config["ai"]["max_tokens"]
 TEMPERATURE = _config["ai"]["temperature"]
+REPEAT_PENALTY = float(_config["ai"].get("repeat_penalty", 1.15))
 OVERVIEW_MAX_TOKENS = _config["ai"]["overview_max_tokens"]
 EXPLAIN_MAX_TOKENS = _config["ai"]["explain_max_tokens"]
 TEST_MAX_TOKENS = _config["ai"]["test_max_tokens"]
+SELECTED_MODEL = _config["ai"].get("selected_model", "")
 
 MAX_REPO_SIZE_BYTES = (
     _config["repo"]["max_download_size_mb"] * 1024 * 1024

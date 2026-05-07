@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QProgressBar, QScrollArea, QTextEdit, QTreeWidget, QTreeWidgetItem, QSplitter, QFormLayout, QSpinBox, QDoubleSpinBox, QInputDialog, QTableWidget, QTableWidgetItem, QHeaderView
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QProgressBar, QScrollArea, QTextEdit, QTreeWidget, QTreeWidgetItem, QSplitter, QFormLayout, QSpinBox, QDoubleSpinBox, QInputDialog, QTableWidget, QTableWidgetItem, QHeaderView, QComboBox
 from PySide6.QtCore import Qt, Signal, QUrl
 from PySide6.QtGui import QFont
 from pathlib import Path
@@ -6,6 +6,7 @@ import os
 from explain import collect_code_file_paths
 from config import load_config, save_config
 from tester import get_test_sets_list, read_test_csv, get_next_test_set_number
+from aihandler import get_available_models
 
 # Modern dark theme with programmer-focused design
 GRADIENT_BACKGROUND = """
@@ -718,12 +719,59 @@ class SettingsScreen(BaseScreen):
         self.temperature_input.setToolTip("Temperature for AI completion sampling.")
         form_layout.addRow(make_label("AI temperature:"), self.temperature_input)
 
+        self.repeat_penalty_input = QDoubleSpinBox()
+        self.repeat_penalty_input.setDecimals(2)
+        self.repeat_penalty_input.setRange(1.0, 2.0)
+        self.repeat_penalty_input.setSingleStep(0.05)
+        self.repeat_penalty_input.setStyleSheet(spinbox_style)
+        self.repeat_penalty_input.setToolTip(
+            "Penalises repeated tokens to prevent the model looping. "
+            "1.0 = no penalty, 1.1–1.3 recommended for small models."
+        )
+        form_layout.addRow(make_label("Repeat penalty:"), self.repeat_penalty_input)
+
         self.max_download_size_input = QSpinBox()
         self.max_download_size_input.setRange(1, 4096)
         self.max_download_size_input.setSuffix(" MB")
         self.max_download_size_input.setStyleSheet(spinbox_style)
         self.max_download_size_input.setToolTip("Maximum repository download size.")
         form_layout.addRow(make_label("Max download size:"), self.max_download_size_input)
+
+        # Model selector — populated from the models directory
+        combobox_style = f"""
+            QComboBox {{
+                background-color: {COLOR_SURFACE_LIGHT};
+                color: {COLOR_TEXT_PRIMARY};
+                border: 1px solid {COLOR_SURFACE_LIGHT};
+                border-radius: 0px;
+                padding: 4px 8px;
+                font-size: 13px;
+                font-family: 'Courier New', monospace;
+                min-width: 300px;
+            }}
+            QComboBox:focus {{
+                border: 1px solid {COLOR_ACCENT_BLUE};
+            }}
+            QComboBox::drop-down {{
+                background-color: {COLOR_SURFACE};
+                border: none;
+                width: 24px;
+            }}
+            QComboBox QAbstractItemView {{
+                background-color: {COLOR_SURFACE};
+                color: {COLOR_TEXT_PRIMARY};
+                border: 1px solid {COLOR_SURFACE_LIGHT};
+                selection-background-color: {COLOR_ACCENT_DARK_BLUE};
+                selection-color: {COLOR_TEXT_PRIMARY};
+                font-family: 'Courier New', monospace;
+                font-size: 12px;
+            }}
+        """
+        self.model_selector = QComboBox()
+        self.model_selector.setStyleSheet(combobox_style)
+        self.model_selector.setToolTip("Select which model to use for AI generation. Changes take effect on next generation.")
+        self._populate_model_selector()
+        form_layout.addRow(make_label("AI model:"), self.model_selector)
 
         scroll_area.setWidget(form_container)
         outer_layout.addWidget(scroll_area)
@@ -769,6 +817,18 @@ class SettingsScreen(BaseScreen):
         outer_layout.addWidget(button_row)
         self.add_content(outer_container)
 
+    def _populate_model_selector(self):
+        """Fill the model dropdown with available .gguf files from the models directory."""
+        self.model_selector.clear()
+        models = get_available_models()
+        if not models:
+            self.model_selector.addItem("(no models found)")
+            self.model_selector.setEnabled(False)
+        else:
+            self.model_selector.setEnabled(True)
+            for name in models:
+                self.model_selector.addItem(name)
+
     def load_settings(self):
         try:
             config_values = load_config()
@@ -777,13 +837,23 @@ class SettingsScreen(BaseScreen):
             self.explain_max_tokens_input.setValue(int(config_values["ai"]["explain_max_tokens"]))
             self.test_max_tokens_input.setValue(int(config_values["ai"]["test_max_tokens"]))
             self.temperature_input.setValue(float(config_values["ai"]["temperature"]))
+            self.repeat_penalty_input.setValue(float(config_values["ai"].get("repeat_penalty", 1.15)))
             self.max_download_size_input.setValue(int(config_values["repo"]["max_download_size_mb"]))
+
+            # Restore saved model selection
+            saved_model = config_values["ai"].get("selected_model", "")
+            if saved_model:
+                idx = self.model_selector.findText(saved_model)
+                if idx >= 0:
+                    self.model_selector.setCurrentIndex(idx)
+
             self.set_status_text("Loaded settings from config.toml.")
         except Exception as e:
             self.set_status_text(f"Unable to load settings: {e}")
 
     def _on_save_clicked(self):
         try:
+            selected_model = self.model_selector.currentText() if self.model_selector.isEnabled() else ""
             new_settings = {
                 "ai": {
                     "max_tokens": int(self.max_tokens_input.value()),
@@ -791,6 +861,8 @@ class SettingsScreen(BaseScreen):
                     "explain_max_tokens": int(self.explain_max_tokens_input.value()),
                     "test_max_tokens": int(self.test_max_tokens_input.value()),
                     "temperature": float(self.temperature_input.value()),
+                    "repeat_penalty": float(self.repeat_penalty_input.value()),
+                    "selected_model": selected_model,
                 },
                 "repo": {
                     "max_download_size_mb": int(self.max_download_size_input.value()),

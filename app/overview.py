@@ -3,7 +3,7 @@ import re
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from aihandler import generate_with_llama, llama_available, read_text_safe
+from aihandler import generate_with_llama, llama_available, read_text_safe, get_model_context_budget
 import config
 README_CANDIDATES = ["README.md", "README.rst", "README.txt", "README"]
 COMMON_TEXT_EXTENSIONS = {".md", ".rst", ".txt", ".py", ".js", ".json", ".yaml", ".yml", ".ini", ".cfg", ".toml"}
@@ -19,63 +19,94 @@ def _read_file_snippet(path: Path, max_chars: int = 14000) -> str:
     return read_text_safe(path, max_chars=max_chars).strip()
 
 
-def _collect_repo_text(repo_folder_path: str) -> str:
+def _collect_repo_text(repo_folder_path: str, budget: Optional[int] = None) -> str:
+    """
+    Collect representative text from the repository.
+
+    *budget* caps the total character count of all snippets combined.
+    When None, generous defaults are used (suitable for large models).
+    When set (e.g. for TinyLlama), snippet sizes and counts are reduced
+    so the assembled text fits comfortably within the model's context window.
+    """
     repo_folder = Path(repo_folder_path)
     snippets: List[str] = []
+
+    # Scale individual snippet sizes to the available budget
+    if budget is not None:
+        readme_chars   = min(600,  budget // 3)
+        dep_chars      = min(300,  budget // 6)
+        entry_chars    = min(400,  budget // 4)
+        source_chars   = min(300,  budget // 6)
+        max_snippets   = 3
+        max_entry_pts  = 1
+    else:
+        readme_chars   = 4000
+        dep_chars      = 1000
+        entry_chars    = 2000
+        source_chars   = 1500
+        max_snippets   = 8
+        max_entry_pts  = 3
+
+    total_chars = 0
 
     # 1. README — high-level intent
     for readme_name in README_CANDIDATES:
         readme_path = repo_folder / readme_name
         if readme_path.exists():
-            content = _read_file_snippet(readme_path, max_chars=4000)
+            content = _read_file_snippet(readme_path, max_chars=readme_chars)
             if content:
                 snippets.append(f"README ({readme_name}):\n{content}")
+                total_chars += len(content)
             break
 
-    # 2. Dependency manifest — reveals frameworks and libraries in use
+    # 2. Dependency manifest
     for dep_file in DEPENDENCY_FILES:
         dep_path = repo_folder / dep_file
         if dep_path.exists():
-            snippet = _read_file_snippet(dep_path, max_chars=1000)
+            snippet = _read_file_snippet(dep_path, max_chars=dep_chars)
             if snippet:
                 snippets.append(f"Dependencies ({dep_file}):\n{snippet}")
+                total_chars += len(snippet)
             break
 
-    # 3. Entry points anywhere in the repo — highest signal for understanding flow
+    # 3. Entry points
     entry_point_snippets: List[str] = []
     for root, dirs, files in os.walk(repo_folder_path):
         dirs[:] = [d for d in dirs if d not in SKIP_DIRS]
         for file_name in files:
             if file_name.lower() in ENTRY_POINT_NAMES:
                 file_path = Path(root) / file_name
-                snippet = _read_file_snippet(file_path, max_chars=2000)
+                snippet = _read_file_snippet(file_path, max_chars=entry_chars)
                 if snippet:
                     rel = file_path.relative_to(repo_folder)
                     entry_point_snippets.append(f"Entry point ({rel}):\n{snippet}")
-            if len(entry_point_snippets) >= 3:
+                    total_chars += len(snippet)
+            if len(entry_point_snippets) >= max_entry_pts:
                 break
-        if len(entry_point_snippets) >= 3:
+        if len(entry_point_snippets) >= max_entry_pts:
             break
     snippets.extend(entry_point_snippets)
 
-    # 4. Remaining source files, skipping tests/build artifacts
+    # 4. Remaining source files
     source_files: List[Path] = []
     for root, dirs, files in os.walk(repo_folder_path):
         dirs[:] = [d for d in dirs if d not in SKIP_DIRS]
         for file_name in files:
             p = Path(root) / file_name
             if p.suffix.lower() in COMMON_TEXT_EXTENSIONS:
-                # Skip files already added as entry points
                 if file_name.lower() not in ENTRY_POINT_NAMES:
                     source_files.append(p)
 
     for file_path in source_files:
-        if len(snippets) >= 8:
+        if len(snippets) >= max_snippets:
             break
-        snippet = _read_file_snippet(file_path, max_chars=1500)
+        if budget is not None and total_chars >= budget:
+            break
+        snippet = _read_file_snippet(file_path, max_chars=source_chars)
         if snippet:
             rel = file_path.relative_to(repo_folder)
             snippets.append(f"File ({rel}):\n{snippet}")
+            total_chars += len(snippet)
 
     return "\n\n---\n\n".join(snippets) if snippets else "No readable files found."
 
@@ -123,8 +154,24 @@ def _compute_repo_metadata(repo_folder_path: str) -> Dict[str, str]:
 
 
 def _build_prompt(repo_folder_path: str, repo_url: Optional[str] = None) -> str:
-    repo_text = _collect_repo_text(repo_folder_path)
+    # Get the character budget for the currently selected model
+    budget = get_model_context_budget()
+    repo_text = _collect_repo_text(repo_folder_path, budget=budget)
     metadata = _compute_repo_metadata(repo_folder_path)
+
+    # Use a shorter, more direct prompt for small-context models
+    if budget <= 2000:
+        return "\n".join([
+            "Summarise this repository briefly.",
+            "",
+            f"URL: {repo_url or 'not provided'}",
+            f"Folders: {metadata['top_level_dirs']}",
+            f"Languages: {metadata['language_summary']}",
+            "",
+            repo_text,
+            "",
+            "Write: 1) Purpose 2) Main components 3) How to run it.",
+        ])
 
     return "\n".join([
         "You are a senior developer writing documentation for other developers.",
@@ -217,31 +264,44 @@ def generate_file_overview(file_path: str) -> str:
     if not path.exists() or not path.is_file():
         return "File not found."
 
-    content = _read_file_snippet(path, max_chars=10000)
+    # Cap content to the model's context budget
+    budget = get_model_context_budget()
+    content_limit = min(10000, budget)
+    content = _read_file_snippet(path, max_chars=content_limit)
     if not content:
         return "Unable to read file contents."
 
     if llama_available():
-        prompt = "\n".join([
-            "You are a senior developer writing documentation for other developers.",
-            "Analyse the source file below and answer each of the following sections:",
-            "",
-            "1. **Purpose** - What is this file's role in one or two sentences? Take note of the file extension for clues. ",
-            "2. **Key functions / classes** - What are the main callables and what do they do?",
-            "3. **Inputs / Outputs** - What does it accept and return?",
-            "4. **Dependencies** - What does it import or rely on?",
-            "5. **Usage notes** - Anything a developer should know before using or modifying this file?",
-            "",
-            f"File name: {path.name}",
-            "",
-            "File contents:",
-            "---",
-            content,
-            "---",
-            "",
-            "Write the structured overview now. Be specific — reference actual function names, "
-            "classes, and variable names where relevant.",
-        ])
+        # Use a compact prompt for small-context models
+        if budget <= 2000:
+            prompt = "\n".join([
+                f"Explain this file: {path.name}",
+                "",
+                content,
+                "",
+                "Write: 1) Purpose 2) Key functions 3) Dependencies.",
+            ])
+        else:
+            prompt = "\n".join([
+                "You are a senior developer writing documentation for other developers.",
+                "Analyse the source file below and answer each of the following sections:",
+                "",
+                "1. **Purpose** - What is this file's role in one or two sentences? Take note of the file extension for clues. ",
+                "2. **Key functions / classes** - What are the main callables and what do they do?",
+                "3. **Inputs / Outputs** - What does it accept and return?",
+                "4. **Dependencies** - What does it import or rely on?",
+                "5. **Usage notes** - Anything a developer should know before using or modifying this file?",
+                "",
+                f"File name: {path.name}",
+                "",
+                "File contents:",
+                "---",
+                content,
+                "---",
+                "",
+                "Write the structured overview now. Be specific — reference actual function names, "
+                "classes, and variable names where relevant.",
+            ])
         result = generate_with_llama(prompt, max_tokens=config.OVERVIEW_MAX_TOKENS)
         if result:
             return result
