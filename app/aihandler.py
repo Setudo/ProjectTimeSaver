@@ -1,5 +1,7 @@
 import importlib
 import os
+import sys
+import contextlib
 from pathlib import Path
 from typing import Optional, List
 
@@ -11,14 +13,15 @@ MODELS_DIR = Path(__file__).parent / "models"
 # System message used for all AI generation tasks
 _SYSTEM_MESSAGE = (
     "You are a senior software developer assistant. "
-    "Provide clear, accurate, and concise responses."
+    "Provide clear, accurate, and concise responses based only on the provided code. "
+    "Never invent or hallucinate code elements, functions, classes, or imports that are not present in the given file."
 )
 
 # Per-model context budgets: (n_ctx, max_prompt_chars)
 # max_prompt_chars is the character limit for the raw prompt content fed to the model.
 # Keeping prompt well under n_ctx leaves enough room for a useful response.
 _MODEL_PROFILES = {
-    "tinyllama": {"n_ctx": 2048, "max_prompt_chars": 1800},
+    "tinyllama": {"n_ctx": 2048, "max_prompt_chars": 1400},
 }
 _DEFAULT_PROFILE = {"n_ctx": 4096, "max_prompt_chars": 6000}
 
@@ -33,6 +36,109 @@ except Exception:
 
 # Cache for Llama instances to avoid multiple loads
 _llama_cache = {}
+
+
+def _is_fd_valid(fd: int) -> bool:
+    """Return True if the given OS file descriptor is valid."""
+    try:
+        os.fstat(fd)
+    except OSError:
+        return False
+    return True
+
+
+def _safe_print(*args, **kwargs):
+    """Print without crashing when stdout/stderr are invalid."""
+    try:
+        print(*args, **kwargs)
+    except OSError:
+        pass
+
+
+@contextlib.contextmanager
+def _suppress_c_streams():
+    """
+    Redirect OS-level stdout/stderr file descriptors to devnull for the
+    duration of the block.
+
+    On Windows, llama.cpp may write directly to the Win32 console handle.
+    When the GUI has redirected or closed those handles the C runtime can
+    raise "OSError: [WinError 6] The handle is invalid."  Redirecting both
+    stdout/stderr to devnull prevents those writes from reaching invalid
+    handles while still allowing Python-level stdout/stderr to be restored
+    afterwards.
+
+    On non-Windows platforms this is a no-op.
+    """
+    if sys.platform != "win32":
+        yield
+        return
+
+    devnull_fd = None
+    saved_stdout_fd = None
+    saved_stderr_fd = None
+    old_stdout = sys.stdout
+    old_stderr = sys.stderr
+    outnull = None
+    errnull = None
+
+    try:
+        devnull_fd = os.open(os.devnull, os.O_RDWR)
+
+        if _is_fd_valid(1):
+            saved_stdout_fd = os.dup(1)
+        os.dup2(devnull_fd, 1)
+
+        if _is_fd_valid(2):
+            saved_stderr_fd = os.dup(2)
+        os.dup2(devnull_fd, 2)
+
+        outnull = open(os.devnull, "w")
+        errnull = open(os.devnull, "w")
+        sys.stdout = outnull
+        sys.stderr = errnull
+
+        yield
+    except OSError:
+        # If redirection fails, continue without crashing the application.
+        yield
+    finally:
+        sys.stdout = old_stdout
+        sys.stderr = old_stderr
+
+        if saved_stdout_fd is not None:
+            try:
+                os.dup2(saved_stdout_fd, 1)
+            except OSError:
+                pass
+            finally:
+                os.close(saved_stdout_fd)
+
+        if saved_stderr_fd is not None:
+            try:
+                os.dup2(saved_stderr_fd, 2)
+            except OSError:
+                pass
+            finally:
+                os.close(saved_stderr_fd)
+
+        if devnull_fd is not None:
+            try:
+                os.close(devnull_fd)
+            except OSError:
+                pass
+
+        if outnull is not None:
+            try:
+                outnull.close()
+            except Exception:
+                pass
+
+        if errnull is not None:
+            try:
+                errnull.close()
+            except Exception:
+                pass
 
 
 def get_available_models() -> List[str]:
@@ -126,20 +232,20 @@ def find_local_model_path(model_name: Optional[str] = None) -> Optional[str]:
         candidate = MODELS_DIR / model_name
         if candidate.exists():
             return str(candidate)
-        print(f"Requested model '{model_name}' not found in {MODELS_DIR}")
+        _safe_print(f"Requested model '{model_name}' not found in {MODELS_DIR}")
 
     # 2. Config setting
     selected = getattr(config, "SELECTED_MODEL", "")
     if selected:
         candidate = MODELS_DIR / selected
         if candidate.exists():
-            print(f"Using configured model: {candidate}")
+            _safe_print(f"Using configured model: {candidate}")
             return str(candidate)
-        print(f"Configured model '{selected}' not found in {MODELS_DIR}, falling back.")
+        _safe_print(f"Configured model '{selected}' not found in {MODELS_DIR}, falling back.")
 
     # 3. Environment variable
     env_path = os.environ.get(MODEL_PATH_ENV)
-    print("ENV PATH:", env_path)
+    _safe_print("ENV PATH:", env_path)
     if env_path:
         env_path = os.path.expanduser(env_path)
         if os.path.exists(env_path):
@@ -160,7 +266,7 @@ def find_local_model_path(model_name: Optional[str] = None) -> Optional[str]:
         for pattern in ["*.gguf", "*.bin"]:
             matches = sorted(base.glob(pattern))
             if matches:
-                print(f"Auto-discovered model: {matches[0]}")
+                _safe_print(f"Auto-discovered model: {matches[0]}")
                 return str(matches[0])
 
     return None
@@ -181,7 +287,7 @@ def generate_with_llama(raw_prompt: str, max_tokens: Optional[int] = None) -> Op
     stop sequences are applied automatically based on the model type.
     """
     model_path = find_local_model_path()
-    print("PATH:", model_path)
+    _safe_print("PATH:", model_path)
     if not model_path or not _LLAMA_CPP_AVAILABLE:
         return None
 
@@ -191,7 +297,7 @@ def generate_with_llama(raw_prompt: str, max_tokens: Optional[int] = None) -> Op
     stop_sequences = _get_stop_sequences(model_name)
     repeat_penalty = getattr(config, "REPEAT_PENALTY", 1.15)
 
-    print(f"Generating with model: {model_name}  |  max_tokens: {max_tokens}  |  repeat_penalty: {repeat_penalty}")
+    _safe_print(f"Generating with model: {model_name}  |  max_tokens: {max_tokens}  |  repeat_penalty: {repeat_penalty}")
 
     effective_max_tokens = max_tokens if max_tokens is not None else config.MAX_TOKENS
 
@@ -199,11 +305,12 @@ def generate_with_llama(raw_prompt: str, max_tokens: Optional[int] = None) -> Op
     cache_key = model_path
     if cache_key not in _llama_cache:
         try:
-            _llama_cache[cache_key] = Llama(
-                model_path=model_path,
-                n_ctx=profile["n_ctx"],
-                verbose=False,
-            )
+            with _suppress_c_streams():
+                _llama_cache[cache_key] = Llama(
+                    model_path=model_path,
+                    n_ctx=profile["n_ctx"],
+                    verbose=False,
+                )
         except Exception as e:
             print(f"Error loading Llama model: {e}")
             return None
@@ -220,13 +327,14 @@ def generate_with_llama(raw_prompt: str, max_tokens: Optional[int] = None) -> Op
         if stop_sequences:
             kwargs["stop"] = stop_sequences
 
-        response = llama.create_completion(**kwargs)
-        print("\nResponse:", response, "\n")
+        with _suppress_c_streams():
+            response = llama.create_completion(**kwargs)
+        _safe_print("\nResponse:", response, "\n")
         text = response.get("choices", [{}])[0].get("text")
-        print("\nGenerated Text:", text, "\n")
+        _safe_print("\nGenerated Text:", text, "\n")
         return text.strip() if isinstance(text, str) else None
     except Exception as e:
-        print(f"Error during Llama generation: {e}")
+        _safe_print(f"Error during Llama generation: {e}")
         return None
 
 

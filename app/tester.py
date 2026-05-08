@@ -4,13 +4,25 @@ import re
 from pathlib import Path
 from typing import List, Dict, Optional
 
-from aihandler import generate_with_llama, llama_available, read_text_safe
+from aihandler import generate_with_llama, llama_available, read_text_safe, get_model_context_budget
 from overview import _collect_repo_text, _compute_repo_metadata
 import config
 
+# Max tokens reserved for the model's response when running on a small-context model.
+# Prompt + response must fit within the model's n_ctx (2048 for TinyLlama).
+_SMALL_CTX_MAX_TOKENS = 400
 
-def _create_test_scenario_prompt(repo_text: str, repo_metadata: Dict[str, str]) -> str:
+
+def _create_test_scenario_prompt(repo_text: str, repo_metadata: Dict[str, str], compact: bool = False) -> str:
     """Create a prompt for generating test scenarios."""
+    if compact:
+        return (
+            f"Folders: {repo_metadata.get('top_level_dirs', '')}\n"
+            f"Languages: {repo_metadata.get('language_summary', '')}\n\n"
+            f"{repo_text}\n\n"
+            "List 3-5 test scenarios. For each use exactly:\n"
+            "TEST ID: <n>\nTEST NAME: <name>\nDESCRIPTION: <what to test>\nEXPECTED RESULT: <outcome>\n---"
+        )
     return f"""Based on the following repository analysis, generate a comprehensive set of test scenarios.
 
 REPOSITORY ANALYSIS:
@@ -38,8 +50,16 @@ Ensure each test is independent and testable.
 """
 
 
-def _create_code_template_prompt(repo_text: str, repo_metadata: Dict[str, str]) -> str:
+def _create_code_template_prompt(repo_text: str, repo_metadata: Dict[str, str], compact: bool = False) -> str:
     """Create a prompt for generating test code templates."""
+    if compact:
+        return (
+            f"Folders: {repo_metadata.get('top_level_dirs', '')}\n"
+            f"Languages: {repo_metadata.get('language_summary', '')}\n\n"
+            f"{repo_text}\n\n"
+            "List 3-5 test templates. For each use exactly:\n"
+            "TEST ID: <n>\nTEST NAME: <name>\nDESCRIPTION: <what the test does>\nEXPECTED RESULT: <what should pass>\n---"
+        )
     return f"""Based on the following repository analysis, generate test code templates.
 
 REPOSITORY ANALYSIS:
@@ -77,12 +97,15 @@ def generate_test_scenarios(repo_folder_path: str) -> Optional[str]:
         return None
 
     try:
-        repo_text = _collect_repo_text(repo_folder_path)
+        budget = get_model_context_budget()
+        compact = budget <= 2000
+        repo_text = _collect_repo_text(repo_folder_path, budget=budget if compact else None)
         repo_metadata = _compute_repo_metadata(repo_folder_path)
-        
-        prompt = _create_test_scenario_prompt(repo_text, repo_metadata)
-        result = generate_with_llama(prompt, max_tokens=config.TEST_MAX_TOKENS)
-        
+
+        prompt = _create_test_scenario_prompt(repo_text, repo_metadata, compact=compact)
+        max_tokens = _SMALL_CTX_MAX_TOKENS if compact else config.TEST_MAX_TOKENS
+        result = generate_with_llama(prompt, max_tokens=max_tokens)
+
         return result
     except Exception as e:
         print(f"Error generating test scenarios: {e}")
@@ -98,12 +121,15 @@ def generate_code_templates(repo_folder_path: str) -> Optional[str]:
         return None
 
     try:
-        repo_text = _collect_repo_text(repo_folder_path)
+        budget = get_model_context_budget()
+        compact = budget <= 2000
+        repo_text = _collect_repo_text(repo_folder_path, budget=budget if compact else None)
         repo_metadata = _compute_repo_metadata(repo_folder_path)
-        
-        prompt = _create_code_template_prompt(repo_text, repo_metadata)
-        result = generate_with_llama(prompt, max_tokens=config.TEST_MAX_TOKENS)
-        
+
+        prompt = _create_code_template_prompt(repo_text, repo_metadata, compact=compact)
+        max_tokens = _SMALL_CTX_MAX_TOKENS if compact else config.TEST_MAX_TOKENS
+        result = generate_with_llama(prompt, max_tokens=max_tokens)
+
         return result
     except Exception as e:
         print(f"Error generating code templates: {e}")

@@ -203,6 +203,7 @@ def _comment_prefix_for_file(path: Path) -> str:
 def _build_code_explanation_prompt(path: Path, content: str, dependency_snippets: List[str]) -> str:
     prompt = [
         "You are a senior developer helping another engineer understand a code file.",
+        "IMPORTANT: Only describe the code provided in this file. Do not invent or reference functions, classes, or imports that are not present in the content below.",
         "Read the file contents below and produce a concise explanation that covers:",
         "1. The file's purpose.",
         "2. Main functions or classes.",
@@ -213,16 +214,15 @@ def _build_code_explanation_prompt(path: Path, content: str, dependency_snippets
         f"File name: {path.name}",
         f"File path: {path}",
         "",
-        "File contents:",
-        "---",
+        "[FILE CONTENT START]",
         content,
-        "---",
+        "[FILE CONTENT END]",
     ]
 
     if dependency_snippets:
-        prompt.extend(["", "Relevant dependency snippets:", "---"])
+        prompt.extend(["", "Relevant dependency snippets:", "[DEPENDENCIES START]"])
         prompt.extend(dependency_snippets[:3])
-        prompt.append("---")
+        prompt.append("[DEPENDENCIES END]")
 
     prompt.append("")
     prompt.append("Write the explanation now. Keep it developer-focused and reference actual function names, classes, and imports where possible.")
@@ -234,7 +234,7 @@ def generate_code_explanation(file_path: str, repo_root: str = None) -> str:
     if not path.exists() or not path.is_file():
         return "File not found."
 
-    content = _read_file_safe(path, max_chars=12000)
+    content = _read_file_safe(path, max_chars=800)
     if not content:
         return "Unable to read file contents."
 
