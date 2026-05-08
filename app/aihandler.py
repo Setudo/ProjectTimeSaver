@@ -13,8 +13,9 @@ MODELS_DIR = Path(__file__).parent / "models"
 # System message used for all AI generation tasks
 _SYSTEM_MESSAGE = (
     "You are a senior software developer assistant. "
-    "Provide clear, accurate, and concise responses based only on the provided code. "
+    "Provide accurate, and concise responses based only on the provided code. "
     "Never invent or hallucinate code elements, functions, classes, or imports that are not present in the given file."
+    "When responding skip formalities and only provide the requested information. "
 )
 
 # Per-model context budgets: (n_ctx, max_prompt_chars)

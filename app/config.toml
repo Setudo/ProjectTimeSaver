@@ -5,7 +5,7 @@ explain_max_tokens = 1024
 test_max_tokens = 2048
 temperature = 0.0
 repeat_penalty = 1.15
-selected_model = "tinyllama-1.1b-chat-v1.0.Q4_K_S.gguf"
+selected_model = "Llama-3.2-3B-Instruct-Q4_K_M.gguf"
 
 [repo]
 max_download_size_mb = 300

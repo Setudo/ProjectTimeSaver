@@ -7,21 +7,33 @@ from typing import List, Dict, Optional
 from aihandler import generate_with_llama, llama_available, read_text_safe, get_model_context_budget
 from overview import _collect_repo_text, _compute_repo_metadata
 import config
+from logger import AppLogger
+
+logger = AppLogger(os.path.dirname(__file__))
 
 # Max tokens reserved for the model's response when running on a small-context model.
 # Prompt + response must fit within the model's n_ctx (2048 for TinyLlama).
-_SMALL_CTX_MAX_TOKENS = 400
+# TinyLlama: n_ctx=2048, compact prompt capped at ~1400 chars (~350 tokens),
+# leaving ~600 tokens for the response — 512 is a safe ceiling that fits 3+ blocks.
+_SMALL_CTX_MAX_TOKENS = 512
+
+
+# Character budget reserved for the fixed parts of the compact prompt (labels,
+# instructions, metadata).  Repo text is capped to whatever remains.
+_COMPACT_PROMPT_OVERHEAD = 300
 
 
 def _create_test_scenario_prompt(repo_text: str, repo_metadata: Dict[str, str], compact: bool = False) -> str:
     """Create a prompt for generating test scenarios."""
     if compact:
+        # Reserve space for instructions so repo text doesn't crowd them out.
+        repo_snippet = repo_text[:max(0, 1400 - _COMPACT_PROMPT_OVERHEAD)]
         return (
             f"Folders: {repo_metadata.get('top_level_dirs', '')}\n"
             f"Languages: {repo_metadata.get('language_summary', '')}\n\n"
-            f"{repo_text}\n\n"
-            "List 3-5 test scenarios. For each use exactly:\n"
-            "TEST ID: <n>\nTEST NAME: <name>\nDESCRIPTION: <what to test>\nEXPECTED RESULT: <outcome>\n---"
+            f"{repo_snippet}\n\n"
+            "List 3 test scenarios. For each write exactly these 4 lines then ---:\n"
+            "TEST ID: 1\nTEST NAME: <name>\nDESCRIPTION: <what to test>\nEXPECTED RESULT: <outcome>\n---"
         )
     return f"""Based on the following repository analysis, generate a comprehensive set of test scenarios.
 
@@ -53,12 +65,13 @@ Ensure each test is independent and testable.
 def _create_code_template_prompt(repo_text: str, repo_metadata: Dict[str, str], compact: bool = False) -> str:
     """Create a prompt for generating test code templates."""
     if compact:
+        repo_snippet = repo_text[:max(0, 1400 - _COMPACT_PROMPT_OVERHEAD)]
         return (
             f"Folders: {repo_metadata.get('top_level_dirs', '')}\n"
             f"Languages: {repo_metadata.get('language_summary', '')}\n\n"
-            f"{repo_text}\n\n"
-            "List 3-5 test templates. For each use exactly:\n"
-            "TEST ID: <n>\nTEST NAME: <name>\nDESCRIPTION: <what the test does>\nEXPECTED RESULT: <what should pass>\n---"
+            f"{repo_snippet}\n\n"
+            "List 3 test templates. For each write exactly these 4 lines then ---:\n"
+            "TEST ID: 1\nTEST NAME: <name>\nDESCRIPTION: <what the test does>\nEXPECTED RESULT: <what should pass>\n---"
         )
     return f"""Based on the following repository analysis, generate test code templates.
 
@@ -108,7 +121,7 @@ def generate_test_scenarios(repo_folder_path: str) -> Optional[str]:
 
         return result
     except Exception as e:
-        print(f"Error generating test scenarios: {e}")
+        logger.error(f"Error generating test scenarios: {e}")
         return None
 
 
@@ -132,35 +145,88 @@ def generate_code_templates(repo_folder_path: str) -> Optional[str]:
 
         return result
     except Exception as e:
-        print(f"Error generating code templates: {e}")
+        logger.error(f"Error generating code templates: {e}")
         return None
+
+
+def _extract_field(label: str, text: str) -> str:
+    """
+    Extract the value for a labelled field from a block of text.
+
+    Handles:
+    - Optional leading ** (bold markdown)
+    - Any amount of whitespace after the colon
+    - Case-insensitive matching
+    """
+    pattern = rf'\*{{0,2}}{re.escape(label)}\*{{0,2}}\s*:\s*(.+)'
+    m = re.search(pattern, text, re.IGNORECASE)
+    return m.group(1).strip() if m else ""
 
 
 def parse_ai_output_to_csv(ai_text: str) -> List[Dict[str, str]]:
     """
     Parse AI-generated text into structured test data.
-    Expects format with TEST ID, TEST NAME, DESCRIPTION, EXPECTED RESULT blocks.
-    Returns list of dictionaries with keys: test_id, test_name, description, expected_result
+
+    Strategy:
+    1. Try a strict consecutive-line regex first (fast path for well-formed output).
+    2. Fall back to a block-splitting approach that tolerates blank lines between
+       fields and minor formatting variations (bold markers, extra whitespace, etc.).
+
+    Returns list of dicts with keys: test_id, test_name, description, expected_result.
     """
     tests: List[Dict[str, str]] = []
-    
+
     if not ai_text:
         return tests
-    
-    # Split by test blocks (look for TEST ID pattern)
-    pattern = r'TEST\s+ID:\s*(\d+)\s*\n\s*TEST\s+NAME:\s*([^\n]+)\s*\n\s*DESCRIPTION:\s*([^\n]+)\s*\n\s*EXPECTED\s+RESULT:\s*([^\n]+)'
-    
-    matches = re.findall(pattern, ai_text, re.IGNORECASE)
-    
-    for match in matches:
-        test_id, test_name, description, expected_result = match
+
+    # --- Pass 1: strict pattern (fields on consecutive lines, no blank lines) ---
+    strict_pattern = (
+        r'TEST\s+ID:\s*(\d+)[^\n]*\n'
+        r'[ \t]*\*{0,2}TEST\s+NAME\*{0,2}:\s*([^\n]+)\n'
+        r'[ \t]*\*{0,2}DESCRIPTION\*{0,2}:\s*([^\n]+)\n'
+        r'[ \t]*\*{0,2}EXPECTED\s+RESULT\*{0,2}:\s*([^\n]+)'
+    )
+    for m in re.finditer(strict_pattern, ai_text, re.IGNORECASE):
         tests.append({
-            'test_id': test_id.strip(),
-            'test_name': test_name.strip(),
-            'description': description.strip(),
-            'expected_result': expected_result.strip()
+            'test_id': m.group(1).strip(),
+            'test_name': m.group(2).strip(),
+            'description': m.group(3).strip(),
+            'expected_result': m.group(4).strip(),
         })
-    
+
+    if tests:
+        return tests
+
+    # --- Pass 2: block-splitting fallback ---
+    # Split on the separator line (---) or on a new TEST ID: line to get per-test chunks.
+    # We anchor splits on "TEST ID:" so each chunk starts with that label.
+    chunks = re.split(r'(?=\bTEST\s+ID\s*:)', ai_text, flags=re.IGNORECASE)
+
+    for chunk in chunks:
+        chunk = chunk.strip()
+        if not chunk:
+            continue
+
+        test_id = _extract_field("TEST ID", chunk)
+        # Accept only numeric IDs; skip chunks that don't look like a test block.
+        if not test_id or not re.match(r'^\d+$', test_id):
+            continue
+
+        test_name = _extract_field("TEST NAME", chunk)
+        description = _extract_field("DESCRIPTION", chunk)
+        expected_result = _extract_field("EXPECTED RESULT", chunk)
+
+        # Require at least a name to consider the block valid.
+        if not test_name:
+            continue
+
+        tests.append({
+            'test_id': test_id,
+            'test_name': test_name,
+            'description': description,
+            'expected_result': expected_result,
+        })
+
     return tests
 
 
@@ -191,7 +257,7 @@ def create_test_csv(tests: List[Dict[str, str]], output_path: str) -> bool:
         
         return True
     except Exception as e:
-        print(f"Error writing CSV: {e}")
+        logger.error(f"Error writing CSV: {e}")
         return False
 
 
@@ -256,6 +322,6 @@ def get_test_sets_list(test_sets_folder: str) -> List[tuple]:
                 except OSError:
                     pass
     except Exception as e:
-        print(f"Error listing test sets: {e}")
+        logger.error(f"Error listing test sets: {e}")
     
     return test_files

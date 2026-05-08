@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QProgressBar, QScrollArea, QTextEdit, QTreeWidget, QTreeWidgetItem, QSplitter, QFormLayout, QSpinBox, QDoubleSpinBox, QInputDialog, QTableWidget, QTableWidgetItem, QHeaderView, QComboBox
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QProgressBar, QScrollArea, QTextEdit, QTreeWidget, QTreeWidgetItem, QSplitter, QFormLayout, QSpinBox, QDoubleSpinBox, QInputDialog, QTableWidget, QTableWidgetItem, QHeaderView, QComboBox, QMessageBox
 from PySide6.QtCore import Qt, Signal, QUrl
 from PySide6.QtGui import QFont
 from pathlib import Path
@@ -881,7 +881,7 @@ class RedScreen(BaseScreen):
     refresh_files_requested = Signal()
     code_explanation_requested = Signal(str)
     annotate_file_requested = Signal(str)
-    save_annotated_file_requested = Signal(str, str)
+    save_annotated_file_requested = Signal(str, str, str)
 
     def __init__(self):
         super().__init__()
@@ -1176,8 +1176,72 @@ class RedScreen(BaseScreen):
             self.annotate_file_requested.emit(self.selected_file_path)
 
     def _on_save_clicked(self):
-        if self.selected_file_path and self.annotated_content:
-            self.save_annotated_file_requested.emit(self.selected_file_path, self.annotated_content)
+        if not self.selected_file_path or not self.annotated_content:
+            return
+
+        source = Path(self.selected_file_path)
+        annotated_path = str(source.parent / f"{source.stem}_annotated{source.suffix}")
+
+        # Build a themed dialog asking how to save
+        dialog = QMessageBox(self)
+        dialog.setWindowTitle("Save annotated file")
+        dialog.setText(
+            f"How would you like to save the annotated version of <b>{source.name}</b>?"
+        )
+        dialog.setInformativeText(
+            f"<b>Replace original</b> — overwrite <i>{source.name}</i><br>"
+            f"<b>Save as annotated</b> — save as <i>{source.stem}_annotated{source.suffix}</i>"
+        )
+        dialog.setStyleSheet(f"""
+            QMessageBox {{
+                background-color: {COLOR_PRIMARY_DARK};
+                color: {COLOR_TEXT_PRIMARY};
+                font-family: 'Courier New', monospace;
+                font-size: 12px;
+            }}
+            QMessageBox QLabel {{
+                background-color: transparent;
+                color: {COLOR_TEXT_PRIMARY};
+                font-family: 'Courier New', monospace;
+                font-size: 12px;
+            }}
+            QPushButton {{
+                background-color: {COLOR_SURFACE};
+                color: {COLOR_TEXT_PRIMARY};
+                border: 1px solid {COLOR_SURFACE_LIGHT};
+                border-radius: 0px;
+                padding: 8px 16px;
+                font-size: 12px;
+                font-weight: 600;
+                font-family: 'Courier New', monospace;
+                min-width: 140px;
+            }}
+            QPushButton:hover {{
+                background-color: {COLOR_SURFACE_LIGHT};
+                border: 1px solid {COLOR_ACCENT_RED};
+                color: {COLOR_ACCENT_RED};
+            }}
+            QPushButton:pressed {{
+                background-color: {COLOR_ACCENT_RED};
+                color: #0f1419;
+            }}
+        """)
+
+        replace_btn = dialog.addButton("Replace original", QMessageBox.AcceptRole)
+        annotated_btn = dialog.addButton("Save as annotated", QMessageBox.AcceptRole)
+        dialog.addButton("Cancel", QMessageBox.RejectRole)
+
+        dialog.exec()
+        clicked = dialog.clickedButton()
+
+        if clicked is replace_btn:
+            target_path = self.selected_file_path
+        elif clicked is annotated_btn:
+            target_path = annotated_path
+        else:
+            return  # Cancelled — do nothing
+
+        self.save_annotated_file_requested.emit(self.selected_file_path, self.annotated_content, target_path)
 
     def set_status_text(self, text: str):
         self.status_label.setText(text)
@@ -1487,6 +1551,10 @@ class GreenScreen(BaseScreen):
         scroll_layout.addStretch()
         scroll_area.setWidget(scroll_container)
         self.add_content(scroll_area)
+
+    def clear_selection(self):
+        """Reset the selected file path."""
+        self.selected_file_path = None
 
     def set_repo_ready_state(self, enabled: bool):
         """Enable/disable generation buttons based on repo state."""

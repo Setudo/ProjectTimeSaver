@@ -893,14 +893,14 @@ class MainWindow(QMainWindow):
             else:
                 self.logger.warning("File annotation failed")
 
-    def on_save_annotated_file(self, file_path, annotated_content):
+    def on_save_annotated_file(self, file_path, annotated_content, target_path):
         if not file_path or not annotated_content:
             self.red_screen.set_status_text("No annotated content is available to save.")
             self.logger.warning("Save annotated file requested without content")
             return
 
-        self.logger.info(f"Saving annotated file for: {file_path}")
-        success, saved_path = save_annotated_file(file_path, annotated_content)
+        self.logger.info(f"Saving annotated file for: {file_path} -> {target_path}")
+        success, saved_path = save_annotated_file(file_path, annotated_content, target_path=target_path)
         if success:
             self.red_screen.set_status_text(f"Annotated file saved to: {saved_path}")
             self.logger.info(f"Annotated file saved: {saved_path}")
@@ -1047,7 +1047,6 @@ class MainWindow(QMainWindow):
         
         try:
             self.green_screen.update_generation_progress(100)
-            print(ai_text) # Debug print to verify AI output is received correctly
             if not success:
                 self.green_screen.set_status_text("Test generation failed.")
                 self.logger.warning("Test generation failed")
@@ -1284,7 +1283,6 @@ class MainWindow(QMainWindow):
             self.logger.info("Repository unlinked successfully")
         except Exception as e:
             error_msg = f"Error unlinking repository: {str(e)}"
-            print(error_msg)
             self.logger.error(error_msg)
 
     def set_sidebar_collapsed(self, collapsed: bool):
