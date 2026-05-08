@@ -1,7 +1,7 @@
 [ai]
 max_tokens = 4096
 overview_max_tokens = 1024
-explain_max_tokens = 1024
+explain_max_tokens = 8192
 test_max_tokens = 2048
 temperature = 0.0
 repeat_penalty = 1.15

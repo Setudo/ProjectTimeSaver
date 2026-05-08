@@ -270,6 +270,62 @@ def generate_code_explanation(file_path: str, repo_root: str = None) -> str:
     )
 
 
+def _extract_code_from_ai_response(response: str, original_content: str) -> str:
+    """
+    Strip prose and markdown fences from an AI annotation response,
+    returning only the code portion.
+
+    Strategy:
+    1. If a markdown code fence is present, extract the content inside it.
+    2. Otherwise, drop leading/trailing lines that look like prose (i.e. lines
+       that appear before the first recognisable code line).
+    3. Fall back to the full response if nothing useful is found.
+    """
+    if not response:
+        return response
+
+    # --- Strategy 1: extract from markdown code fence ---
+    fence_match = re.search(r'```(?:\w+)?\n(.*?)```', response, re.DOTALL)
+    if fence_match:
+        extracted = fence_match.group(1).rstrip()
+        if extracted:
+            return extracted
+
+    # --- Strategy 2: drop leading/trailing prose lines ---
+    # A line is considered "code-like" if it starts with a known code pattern.
+    code_start_patterns = re.compile(
+        r'^\s*('
+        r'#|//|/\*|\*'           # comments
+        r'|import |from |require'  # imports
+        r'|def |class |function |const |let |var |public |private |protected '
+        r'|return |if |for |while |try |async |export '
+        r'|@'                    # decorators / annotations
+        r'|\w+\s*[=({]'         # assignments / calls
+        r')'
+    )
+
+    lines = response.splitlines()
+    first_code = None
+    last_code = None
+    for i, line in enumerate(lines):
+        if code_start_patterns.match(line) or (line.strip() == '' and first_code is not None):
+            if first_code is None:
+                first_code = i
+            last_code = i
+
+    if first_code is not None:
+        # Trim trailing blank lines
+        trimmed = lines[first_code:last_code + 1]
+        while trimmed and not trimmed[-1].strip():
+            trimmed.pop()
+        result = '\n'.join(trimmed)
+        if result:
+            return result
+
+    # --- Fallback: return the full response unchanged ---
+    return response
+
+
 def _build_annotation_prompt(path: Path, content: str) -> str:
     comment_prefix = _comment_prefix_for_file(path)
     return "\n".join([
@@ -298,9 +354,12 @@ def annotate_code_file(file_path: str, repo_root: str = None) -> str:
 
     if llama_available():
         prompt = _build_annotation_prompt(path, content)
-        result = generate_with_llama(prompt, max_tokens=config.EXPLAIN_MAX_TOKENS)
+        # Output must be at least 1.5× the input length to fit the annotated code.
+        # Use ~3 chars per token as a conservative estimate for source code.
+        dynamic_max_tokens = max(config.EXPLAIN_MAX_TOKENS, int(len(content) * 1.5 / 3))
+        result = generate_with_llama(prompt, max_tokens=dynamic_max_tokens)
         if result:
-            return result
+            return _extract_code_from_ai_response(result, content)
 
     comment_char = _comment_prefix_for_file(path)
     annotated_lines: List[str] = []

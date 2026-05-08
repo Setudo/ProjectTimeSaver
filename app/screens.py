@@ -702,7 +702,7 @@ class SettingsScreen(BaseScreen):
         self.explain_max_tokens_input = QSpinBox()
         self.explain_max_tokens_input.setRange(1, 32768)
         self.explain_max_tokens_input.setStyleSheet(spinbox_style)
-        self.explain_max_tokens_input.setToolTip("Max tokens used when generating code explanations and annotations.")
+        self.explain_max_tokens_input.setToolTip("Minimum tokens used when generating code explanations and annotations. For annotation, the actual limit scales to at least 1.5× the file size, so this acts as a floor.")
         form_layout.addRow(make_label("Code explanation max tokens:"), self.explain_max_tokens_input)
 
         self.test_max_tokens_input = QSpinBox()

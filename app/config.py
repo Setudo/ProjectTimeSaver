@@ -11,7 +11,7 @@ DEFAULT_CONFIG = {
         "temperature": 0.4,
         "repeat_penalty": 1.15,
         "overview_max_tokens": 4096,
-        "explain_max_tokens": 4096,
+        "explain_max_tokens": 8192,
         "test_max_tokens": 4096,
         "selected_model": "",
     },
