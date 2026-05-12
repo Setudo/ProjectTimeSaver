@@ -3,7 +3,7 @@ import os
 import shutil
 from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QStackedWidget, QLabel, QSplitter, QSizePolicy, QInputDialog
 from PySide6.QtCore import Qt, QThread, Signal, QObject, QTimer
-from PySide6.QtGui import QFontDatabase, QFont # Used to change fonts (as long as they are downloaded)
+from PySide6.QtGui import QFontDatabase, QFont, QPixmap, QPainter # Used to change fonts (as long as they are downloaded)
 from screens import BlueScreen, RedScreen, GreenScreen, SettingsScreen, GitHubScreen
 import repo_puller
 import aihandler
@@ -38,8 +38,21 @@ class MainScreen(QWidget):
         super().__init__()
         self.navigate = navigate_callback
         self.unlink_repo = unlink_callback
-        self.setStyleSheet(GRADIENT_BACKGROUND)
+        # Load background image; path is relative to this file
+        self._bg_pixmap = QPixmap(
+            os.path.join(os.path.dirname(__file__), "images", "background.png")
+        )
         self.init_ui()
+
+    def paintEvent(self, event):
+        """Draw background.png stretched to fill the entire widget."""
+        painter = QPainter(self)
+        if not self._bg_pixmap.isNull():
+            painter.drawPixmap(self.rect(), self._bg_pixmap)
+        else:
+            # Fallback to solid dark colour if image fails to load
+            painter.fillRect(self.rect(), Qt.black)
+        painter.end()
 
     def init_ui(self):
         layout = QVBoxLayout(self)
@@ -47,7 +60,7 @@ class MainScreen(QWidget):
         layout.setSpacing(10)
 
         # Title
-        title = QLabel("ProjectTimeSaver")
+        title = QLabel("GitInsight")
         title.setStyleSheet(f"background-color: transparent; font-size: 48px; font-weight: bold; color: {COLOR_ACCENT_BLUE}; letter-spacing: 2px;")
         title.setAlignment(Qt.AlignCenter)
         title.setFont(QFont("Courier New", 32, QFont.Bold))
@@ -205,7 +218,7 @@ class MainScreen(QWidget):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("ProjectTimeSaver - AI Bot UI")
+        self.setWindowTitle("GitInsight - AI-powered repo helper")
         self.resize(1000, 700)
         self.setStyleSheet(GRADIENT_BACKGROUND)
 
