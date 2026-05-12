@@ -1326,6 +1326,7 @@ class MainWindow(QMainWindow):
             expanded_width = self.sidebar_expanded_width
             if collapsed:
                 self.sidebar.setFixedWidth(collapsed_width)
+                self.main_splitter.setSizes([collapsed_width, self.main_splitter.width() - collapsed_width])
                 try:
                     for b in getattr(self, 'sidebar_buttons', []):
                         b.setVisible(False)
@@ -1343,6 +1344,7 @@ class MainWindow(QMainWindow):
                     pass
             else:
                 self.sidebar.setFixedWidth(expanded_width)
+                self.main_splitter.setSizes([expanded_width, self.main_splitter.width() - expanded_width])
                 try:
                     for b in getattr(self, 'sidebar_buttons', []):
                         b.setVisible(True)
@@ -1409,7 +1411,7 @@ class MainWindow(QMainWindow):
                 """)
                 self.sidebar_github_button.setText("" if collapsed else text)
                 self.sidebar_github_button.setMaximumWidth(48 if collapsed else 16777215)
-                self.sidebar_github_button.setVisible(True)
+                self.sidebar_github_button.setVisible(not collapsed)
                 self.sidebar_unlink_button.setEnabled(True)
             else:
                 self.sidebar_github_button.setVisible(not collapsed)
