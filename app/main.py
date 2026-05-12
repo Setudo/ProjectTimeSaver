@@ -6,6 +6,7 @@ from PySide6.QtCore import Qt, QThread, Signal, QObject, QTimer
 from PySide6.QtGui import QFontDatabase, QFont # Used to change fonts (as long as they are downloaded)
 from screens import BlueScreen, RedScreen, GreenScreen, SettingsScreen, GitHubScreen
 import repo_puller
+import aihandler
 from overview import generate_repo_overview, generate_file_overview
 from explain import collect_code_file_paths, generate_code_explanation, annotate_code_file, save_annotated_file
 from tester import generate_test_scenarios, generate_code_templates, parse_ai_output_to_csv, create_test_csv, get_next_test_set_number
@@ -57,6 +58,16 @@ class MainScreen(QWidget):
         subtitle.setStyleSheet(f"background-color: transparent; font-size: 14px; color: {COLOR_TEXT_SECONDARY}; letter-spacing: 0.5px;")
         subtitle.setAlignment(Qt.AlignCenter)
         layout.addWidget(subtitle)
+
+        # Active model indicator
+        self.model_label = QLabel()
+        self.model_label.setStyleSheet(
+            f"background-color: transparent; font-size: 11px; color: {COLOR_ACCENT_BLUE}; "
+            f"font-family: 'Courier New', monospace; letter-spacing: 0.5px;"
+        )
+        self.model_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self.model_label)
+
         layout.addSpacing(20)
         # Note: main navigation buttons moved to a collapsible sidebar in MainWindow.
         info = QLabel("Use the sidebar to navigate the main sections.")
@@ -133,6 +144,15 @@ class MainScreen(QWidget):
         self.github_button.setVisible(False)
         self.unlink_button.setVisible(False)
     
+    def set_active_model(self, model_name: str):
+        """Update the model indicator label on the title page."""
+        if model_name:
+            self.model_label.setText(f"Model: {model_name}")
+            self.model_label.setVisible(True)
+        else:
+            self.model_label.setText("")
+            self.model_label.setVisible(False)
+
     def set_repo_linked(self, is_linked):
         """Update the GitHub button state to show if a repo is linked."""
         self.unlink_button.setEnabled(is_linked)
@@ -270,6 +290,9 @@ class MainWindow(QMainWindow):
         self.settings_screen.back_pressed.connect(self.back_to_main)
         self.github_screen.back_pressed.connect(self.back_to_main)
 
+        # Connect settings-saved signal for real-time updates
+        self.settings_screen.settings_saved.connect(self.on_settings_saved)
+
         # Connect GitHub linking signals
         self.github_screen.repo_linked.connect(self.on_repo_linked)
         self.github_screen.repo_unlinked.connect(self.on_repo_unlinked)
@@ -348,26 +371,28 @@ class MainWindow(QMainWindow):
         github_row_layout.setSpacing(8)
 
         self.sidebar_github_button = QPushButton("Link GitHub Repository")
-        self.sidebar_github_button.setMinimumHeight(48)
+        self.sidebar_github_button.setMinimumHeight(70)
         self.sidebar_github_button.setStyleSheet(f"""
             QPushButton {{
-                background-color: {COLOR_SURFACE_LIGHT};
+                background-color: transparent;
                 color: {COLOR_TEXT_PRIMARY};
                 border: 1px solid {COLOR_SURFACE_LIGHT};
                 border-radius: 0px;
-                font-size: 11px;
-                font-weight: 500;
-                padding: 10px;
                 font-family: 'Courier New', monospace;
+                font-size: 12px;
+                font-weight: 600;
+                padding: 10px;
+                text-align: left;
             }}
             QPushButton:hover {{
-                background-color: {COLOR_ACCENT_DARK_BLUE};
-                border: 1px solid {COLOR_ACCENT_BLUE};
-                color: {COLOR_ACCENT_BLUE};
+                background-color: {COLOR_SURFACE_LIGHT};
+                color: {COLOR_TEXT_SECONDARY};
+                border: 1px solid {COLOR_TEXT_SECONDARY};
             }}
             QPushButton:pressed {{
-                background-color: {COLOR_ACCENT_BLUE};
+                background-color: {COLOR_TEXT_SECONDARY};
                 color: #0f1419;
+                border: 1px solid {COLOR_TEXT_SECONDARY};
             }}
         """)
         self.sidebar_github_button.setCursor(Qt.PointingHandCursor)
@@ -417,6 +442,14 @@ class MainWindow(QMainWindow):
         
         # Check if repo is already linked
         self.check_and_update_repo_status()
+
+        # Populate the model label from the current config on startup
+        try:
+            import config as _config
+            startup_model = getattr(_config, "SELECTED_MODEL", "")
+            self.main_screen.set_active_model(startup_model)
+        except Exception:
+            pass
 
     def _install_exception_hook(self):
         def handle_exception(exc_type, exc_value, exc_traceback):
@@ -1331,6 +1364,14 @@ class MainWindow(QMainWindow):
         except Exception as e:
             self.logger.error(f"Error setting sidebar collapsed state: {str(e)}")
 
+    def on_settings_saved(self, selected_model: str):
+        """Called immediately after settings are saved. Updates live config consumers."""
+        self.logger.info(f"Settings saved; active model: {selected_model or '(none)'}")
+        # Evict the old model from the llama cache so the next generation picks up the new one
+        aihandler.invalidate_model_cache()
+        # Update the title-page model indicator
+        self.main_screen.set_active_model(selected_model)
+
     def toggle_sidebar(self):
         """Collapse or expand the sidebar."""
         self.set_sidebar_collapsed(not getattr(self, 'sidebar_collapsed', False))
@@ -1349,47 +1390,51 @@ class MainWindow(QMainWindow):
                         color: #0f1419;
                         border: 1px solid {COLOR_SUCCESS};
                         border-radius: 0px;
-                        font-size: 11px;
+                        font-family: 'Courier New', monospace;
+                        font-size: 12px;
                         font-weight: 600;
                         padding: 10px;
-                        font-family: 'Courier New', monospace;
+                        text-align: left;
                     }}
                     QPushButton:hover {{
-                        background-color: {COLOR_SURFACE};
+                        background-color: {COLOR_SURFACE_LIGHT};
                         border: 1px solid {COLOR_SUCCESS};
                         color: {COLOR_SUCCESS};
                     }}
                     QPushButton:pressed {{
                         background-color: {COLOR_SUCCESS};
                         color: #0f1419;
+                        border: 1px solid {COLOR_SUCCESS};
                     }}
                 """)
-                self.sidebar_github_button.setText("GH" if collapsed else text)
+                self.sidebar_github_button.setText("" if collapsed else text)
                 self.sidebar_github_button.setMaximumWidth(48 if collapsed else 16777215)
                 self.sidebar_github_button.setVisible(True)
                 self.sidebar_unlink_button.setEnabled(True)
             else:
                 self.sidebar_github_button.setVisible(not collapsed)
-                # default unlinked style
+                # default unlinked style — matches nav button with Settings (grey) accent
                 self.sidebar_github_button.setStyleSheet(f"""
                     QPushButton {{
-                        background-color: {COLOR_SURFACE_LIGHT};
+                        background-color: transparent;
                         color: {COLOR_TEXT_PRIMARY};
                         border: 1px solid {COLOR_SURFACE_LIGHT};
                         border-radius: 0px;
-                        font-size: 11px;
-                        font-weight: 500;
-                        padding: 10px;
                         font-family: 'Courier New', monospace;
+                        font-size: 12px;
+                        font-weight: 600;
+                        padding: 10px;
+                        text-align: left;
                     }}
                     QPushButton:hover {{
-                        background-color: {COLOR_ACCENT_DARK_BLUE};
-                        border: 1px solid {COLOR_ACCENT_BLUE};
-                        color: {COLOR_ACCENT_BLUE};
+                        background-color: {COLOR_SURFACE_LIGHT};
+                        color: {COLOR_TEXT_SECONDARY};
+                        border: 1px solid {COLOR_TEXT_SECONDARY};
                     }}
                     QPushButton:pressed {{
-                        background-color: {COLOR_ACCENT_BLUE};
+                        background-color: {COLOR_TEXT_SECONDARY};
                         color: #0f1419;
+                        border: 1px solid {COLOR_TEXT_SECONDARY};
                     }}
                 """)
                 self.sidebar_github_button.setText("Link" if collapsed else "Link GitHub Repository")

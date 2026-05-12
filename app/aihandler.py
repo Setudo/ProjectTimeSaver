@@ -39,6 +39,21 @@ except Exception:
 _llama_cache = {}
 
 
+def invalidate_model_cache(model_name: Optional[str] = None) -> None:
+    """
+    Evict a cached Llama instance so the next generation reloads the model.
+
+    If *model_name* is given, only that model's cache entry is removed.
+    If omitted, the entire cache is cleared.
+    """
+    global _llama_cache
+    if model_name:
+        key = str(MODELS_DIR / model_name)
+        _llama_cache.pop(key, None)
+    else:
+        _llama_cache.clear()
+
+
 def _is_fd_valid(fd: int) -> bool:
     """Return True if the given OS file descriptor is valid."""
     try:

@@ -584,6 +584,8 @@ class BlueScreen(BaseScreen):
 class SettingsScreen(BaseScreen):
     """Screen for editing config.toml values."""
 
+    settings_saved = Signal(str)  # emits the selected model name after a successful save
+
     def __init__(self):
         super().__init__()
         self.setStyleSheet(GRADIENT_BACKGROUND)
@@ -869,7 +871,8 @@ class SettingsScreen(BaseScreen):
                 },
             }
             save_config(new_settings)
-            self.set_status_text("Settings saved. Restart may be required for all modules.")
+            self.set_status_text("Settings saved successfully.")
+            self.settings_saved.emit(selected_model)
         except Exception as e:
             self.set_status_text(f"Failed to save settings: {e}")
 
@@ -1371,8 +1374,8 @@ class GreenScreen(BaseScreen):
             }}
             QPushButton:hover {{
                 background-color: {COLOR_SURFACE_LIGHT};
-                border: 1px solid {COLOR_ACCENT_BLUE};
-                color: {COLOR_ACCENT_BLUE};
+                border: 1px solid {COLOR_SUCCESS};
+                color: {COLOR_SUCCESS};
             }}
             QPushButton:pressed {{
                 background-color: {COLOR_SUCCESS};
