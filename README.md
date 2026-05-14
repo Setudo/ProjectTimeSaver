@@ -1,4 +1,4 @@
-# ProjectTimeSaver
+# GitInsight
 Final year university project aiming to reduce repetitive or time consuming development processes.
 
 ## Setup
