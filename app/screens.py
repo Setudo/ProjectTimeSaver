@@ -959,8 +959,8 @@ class RedScreen(BaseScreen):
             }}
             QPushButton:hover {{
                 background-color: {COLOR_SURFACE_LIGHT};
-                border: 1px solid {COLOR_ACCENT_BLUE};
-                color: {COLOR_ACCENT_BLUE};
+                border: 1px solid {COLOR_ACCENT_RED};
+                color: {COLOR_ACCENT_RED};
             }}
             QPushButton:pressed {{
                 background-color: {COLOR_ACCENT_RED};
